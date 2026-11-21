@@ -12,15 +12,27 @@
     "dev:server": "npm --prefix server run dev",
     "build": "tsc -b && vite build",
     "build:server": "npm --prefix server run build",
+    "build:cloudflare": "tsc -p tsconfig.cloudflare.json && vite build",
+    "cloudflare:dev": "npm run build:cloudflare && wrangler dev",
+    "cloudflare:deploy": "npm run build:cloudflare && wrangler deploy",
+    "cloudflare:db:create": "wrangler d1 create tampisawan-booking",
+    "cloudflare:db:migrate:local": "wrangler d1 migrations apply tampisawan-booking --local",
+    "cloudflare:db:migrate:remote": "wrangler d1 migrations apply tampisawan-booking --remote",
+    "cloudflare:r2:create": "wrangler r2 bucket create tampisawan-payment-proofs",
+    "cloudflare:admin:sql": "node cloudflare/create-admin.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.20",
+    "aos": "^2.3.4",
     "lucide-react": "^1.68.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261104.1",
+    "@types/aos": "^3.0.8",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -28,6 +40,7 @@
     "concurrently": "^9.2.1",
     "oxlint": "^1.89.0",
     "typescript": "~7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "wrangler": "^4.157.0"
   }
 }

@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowRight,
@@ -8,42 +8,198 @@ import {
   CircleDollarSign,
   ClipboardList,
   Clock3,
+  Hourglass,
   Compass,
   House,
+  Images,
+  Info,
   LogOut,
   Leaf,
-  MapPin,
   Minus,
+  Moon,
   Plus,
   ShieldCheck,
   Sparkles,
+  Sun,
   TentTree,
   Users,
+  Wallet,
   Waves,
   X,
 } from 'lucide-react'
 import { accommodations } from './data/accommodations'
 import {
   type Booking,
-  type PaymentMethod,
   type TourType,
   displayCheckoutDate,
+  formatHoldTimeLeft,
+  holdMillisecondsLeft,
+  isActiveHold,
   tourDetails,
 } from './data/bookings'
 import {
-  createBookingRequest,
+  createGcashCheckout,
+  createPendingHold,
+  fetchAvailability,
   fetchCustomerBookings,
-  submitPaymentProof as sendPaymentProof,
 } from './api/bookings'
-import { calculateBookingTotal, formatPeso } from './utils/pricing'
+import HoldCountdown from './components/HoldCountdown'
+import { BOOKING_MAX_GUESTS, calculateBookingTotal, combineAccommodations, entranceRates, formatPeso, priceAccommodations, usesOvernightRates } from './utils/pricing'
+import ResortLogo from './components/ResortLogo'
 import AdminPage from './AdminPage'
 import AuthPage from './AuthPage'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/useAuth'
+import { useTheme } from './theme/ThemeProvider'
 import ProtectedRoute from './ProtectedRoute'
+import BookingReceiptModal from './BookingReceiptModal'
+import BookingSuccessPage from './BookingSuccessPage'
+import BookingCancelledPage from './BookingCancelledPage'
+import GeraintChatbot from './components/GeraintChatbot'
+import StayGallery from './components/StayGallery'
+import HeroShowcase from './components/HeroShowcase'
+import FallingLeaves from './components/FallingLeaves'
+import AmbientAtmosphere from './components/AmbientAtmosphere'
+import { useScrollSpy } from './hooks/useScrollSpy'
+import { useAnimateOnScroll } from './hooks/useAnimateOnScroll'
+import { useGlassSpotlight, useScrollProgress } from './hooks/useLuxuryEffects'
+import Tooltip from './components/Tooltip'
 import './App.css'
+import './theme/brand.css'
+import './theme/luxury.css'
+import './theme/sunlit.css'
+import './theme/polish.css'
 
 type GuestType = 'adults' | 'seniorsPwd' | 'children'
+type GuestCounts = Record<GuestType, number>
+type GuestBookingDraft = {
+  selectedIds: string[]
+  tourType: TourType
+  checkInDate: string
+  checkOutDate: string
+  /** Main guests, in the room. */
+  guests: GuestCounts
+  /** Guests added beyond the room's pax (they pay entrance). */
+  extraGuests: GuestCounts
+  paymentChoice: PaymentChoice
+}
+
+/** How the guest wants to pay: a GCash deposit online, or cash at the resort. */
+type PaymentChoice = 'ONLINE' | 'WALKIN'
+
+const noGuests: GuestCounts = { adults: 0, seniorsPwd: 0, children: 0 }
+const countGuests = (group: GuestCounts) => group.adults + group.seniorsPwd + group.children
+
+/**
+ * Keeps the party consistent with the room: main guests fill the pax that include entrance
+ * first, and only the rest are extra guests. When the pax shrink (another tour, fewer rooms),
+ * overflow moves to the extras; when they grow, extras move into the room. With no pax
+ * included (every guest pays entrance), everyone is a main guest.
+ */
+function rebalanceParty(party: { main: GuestCounts, extra: GuestCounts }, pax: number | null) {
+  const main = { ...party.main }
+  const extra = { ...party.extra }
+  if (pax === null) {
+    for (const type of ['adults', 'seniorsPwd', 'children'] as const) { main[type] += extra[type]; extra[type] = 0 }
+  } else {
+    let over = countGuests(main) - pax
+    for (const type of ['adults', 'seniorsPwd', 'children'] as const) {
+      // Keep at least one adult in the room.
+      const movable = Math.max(0, Math.min(over, main[type] - (type === 'adults' ? 1 : 0)))
+      main[type] -= movable; extra[type] += movable; over -= movable
+    }
+    let free = pax - countGuests(main)
+    for (const type of ['children', 'seniorsPwd', 'adults'] as const) {
+      const movable = Math.max(0, Math.min(free, extra[type]))
+      extra[type] -= movable; main[type] += movable; free -= movable
+    }
+  }
+  const same = (['adults', 'seniorsPwd', 'children'] as const).every((type) => main[type] === party.main[type] && extra[type] === party.extra[type])
+  return same ? party : { main, extra }
+}
+
+const GUEST_BOOKING_DRAFT_KEY = 'tampisawan_guest_booking_draft'
+
+/** Header links, in the same order as their sections on the page. */
+const navSections = [
+  { id: 'stays', label: 'Stay & unwind' },
+  { id: 'booking', label: 'Plan your visit' },
+  { id: 'my-inquiry', label: 'My bookings & payments' },
+  { id: 'amenities', label: 'Amenities' },
+]
+const navSectionIds = navSections.map((section) => section.id)
+
+/** Known accommodation IDs, de-duplicated, in the resort's listing order. */
+function orderedAccommodationIds(ids: string[]) {
+  return accommodations.filter((stay) => ids.includes(stay.id)).map((stay) => stay.id)
+}
+
+function isTourType(value: unknown): value is TourType {
+  return value === 'OVERNIGHT' || value === 'DAY_TOUR' || value === 'NIGHT_TOUR'
+}
+
+function isDateInput(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
+}
+
+function isIntegerAtLeast(value: unknown, minimum: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= minimum
+}
+
+function readGuestBookingDraft(): GuestBookingDraft | null {
+  let stored: string | null
+  try {
+    stored = sessionStorage.getItem(GUEST_BOOKING_DRAFT_KEY)
+  } catch (error) {
+    console.error('Could not read guest booking details from session storage:', error)
+    return null
+  }
+  if (!stored) return null
+  let value: unknown
+  try {
+    value = JSON.parse(stored)
+  } catch (error) {
+    console.error('Could not parse guest booking details from session storage:', error)
+    return null
+  }
+  if (typeof value !== 'object' || value === null) return null
+  const savedIds: unknown = 'selectedIds' in value
+    ? value.selectedIds
+    : 'selectedId' in value ? [value.selectedId] : null
+  const selectedIds = Array.isArray(savedIds)
+    ? orderedAccommodationIds(savedIds.filter((id): id is string => typeof id === 'string'))
+    : []
+  if (
+    selectedIds.length === 0 ||
+    !('tourType' in value) || !isTourType(value.tourType) ||
+    !('checkInDate' in value) || !isDateInput(value.checkInDate) ||
+    !('checkOutDate' in value) || !isDateInput(value.checkOutDate) ||
+    value.checkOutDate <= value.checkInDate ||
+    !('guests' in value) || typeof value.guests !== 'object' || value.guests === null ||
+    !('adults' in value.guests) || !isIntegerAtLeast(value.guests.adults, 1) ||
+    !('seniorsPwd' in value.guests) || !isIntegerAtLeast(value.guests.seniorsPwd, 0) ||
+    !('children' in value.guests) || !isIntegerAtLeast(value.guests.children, 0)
+  ) return null
+  const storedExtras = 'extraGuests' in value && typeof value.extraGuests === 'object' && value.extraGuests !== null
+    ? value.extraGuests as Record<string, unknown>
+    : {}
+  const extraCount = (key: GuestType) => isIntegerAtLeast(storedExtras[key], 0) ? storedExtras[key] as number : 0
+  return {
+    selectedIds,
+    tourType: value.tourType,
+    checkInDate: value.checkInDate,
+    checkOutDate: value.checkOutDate,
+    guests: {
+      adults: value.guests.adults,
+      seniorsPwd: value.guests.seniorsPwd,
+      children: value.guests.children,
+    },
+    extraGuests: { adults: extraCount('adults'), seniorsPwd: extraCount('seniorsPwd'), children: extraCount('children') },
+    paymentChoice: 'paymentChoice' in value && value.paymentChoice === 'WALKIN' ? 'WALKIN' : 'ONLINE',
+  }
+}
 
 const guestLabels: Record<GuestType, { title: string; detail: string }> = {
   adults: { title: 'Adults', detail: '11 years and above' },
@@ -78,64 +234,167 @@ const daysBetween = (startDate: string, endDate: string) => {
   return Math.max(1, Math.round((end - start) / 86_400_000))
 }
 
-function balanceDueAt(checkOutDate: string, tourType: TourType) {
-  const dueTime = tourType === 'DAY_TOUR' ? '16:00:00' : tourType === 'NIGHT_TOUR' ? '05:00:00' : '11:00:00'
-  return new Date(`${displayCheckoutDate(checkOutDate, tourType)}T${dueTime}+08:00`)
-}
-
-function formatPhilippineDateTime(date: Date) {
-  return date.toLocaleString('en-PH', {
-    timeZone: 'Asia/Manila',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
-
-function paymentInstructions(method: PaymentMethod) {
-  return method === 'GCASH'
-    ? 'Send your payment to GCash: 09778510927.'
-    : 'Contact the resort for payment instructions for this method.'
-}
-
 function CustomerPage() {
   const { user, token, logout } = useAuth()
-  const [selectedId, setSelectedId] = useState(accommodations[0].id)
-  const [tourType, setTourType] = useState<TourType>('OVERNIGHT')
-  const [checkInDate, setCheckInDate] = useState(tomorrow)
-  const [checkOutDate, setCheckOutDate] = useState(() => addDays(tomorrow(), 1))
-  const [guests, setGuests] = useState({ adults: 2, seniorsPwd: 0, children: 0 })
+  const { theme, toggleTheme } = useTheme()
+  const [guestBookingDraft] = useState(readGuestBookingDraft)
+  const [selectedIds, setSelectedIds] = useState<string[]>(guestBookingDraft?.selectedIds ?? [accommodations[0].id])
+  const [tourType, setTourType] = useState<TourType>(guestBookingDraft?.tourType ?? 'OVERNIGHT')
+  const [checkInDate, setCheckInDate] = useState(guestBookingDraft?.checkInDate ?? tomorrow)
+  const [checkOutDate, setCheckOutDate] = useState(
+    guestBookingDraft?.checkOutDate ?? (() => addDays(tomorrow(), 1)),
+  )
+  // Main guests fill the room's pax first; extra guests come after and pay entrance.
+  const [party, setParty] = useState(() => ({
+    main: guestBookingDraft?.guests ?? { adults: 2, seniorsPwd: 0, children: 0 },
+    extra: guestBookingDraft?.extraGuests ?? { ...noGuests },
+  }))
+  const mainGuests = party.main
+  const extraGuests = party.extra
+  const guests = useMemo(() => ({
+    adults: party.main.adults + party.extra.adults,
+    seniorsPwd: party.main.seniorsPwd + party.extra.seniorsPwd,
+    children: party.main.children + party.extra.children,
+  }), [party])
+  const [availabilityResult, setAvailabilityResult] = useState<{
+    key: string
+    available: boolean
+    pendingHold: boolean
+    blocked: boolean
+  } | null>(null)
+  const [availabilityErrorKey, setAvailabilityErrorKey] = useState<string | null>(null)
   const [showReview, setShowReview] = useState(false)
+  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>(guestBookingDraft?.paymentChoice ?? 'ONLINE')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [storageError, setStorageError] = useState('')
   const [logoutError, setLogoutError] = useState('')
-  const [bookingReference, setBookingReference] = useState('')
   const [lookupReference, setLookupReference] = useState('')
   const [lookupBookingId, setLookupBookingId] = useState('')
-  const [paymentReference, setPaymentReference] = useState('')
-  const [payerAccount, setPayerAccount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('GCASH')
-  const [paymentChoice, setPaymentChoice] = useState<'DEPOSIT' | 'FULL'>('DEPOSIT')
-  const [paymentAmountInput, setPaymentAmountInput] = useState('')
-  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null)
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [paymentNotification, setPaymentNotification] = useState<{ message: string; rejected: boolean; bookingId: string } | null>(null)
+  const [receiptBooking, setReceiptBooking] = useState<Booking | null>(null)
+  const [galleryStayId, setGalleryStayId] = useState<string | null>(null)
+  const { active: activeSection, scrollTo: scrollToSection } = useScrollSpy(navSectionIds)
+  useAnimateOnScroll()
+  const scrollProgressRef = useScrollProgress<HTMLSpanElement>()
+  const navRef = useRef<HTMLElement>(null)
+  const navIndicatorRef = useRef<HTMLSpanElement>(null)
+
+  // Slide the highlight bar under the active header link (positioned directly, no re-render).
+  useLayoutEffect(() => {
+    const place = () => {
+      const nav = navRef.current
+      const indicator = navIndicatorRef.current
+      if (!nav || !indicator) return
+      const link = activeSection ? nav.querySelector<HTMLElement>(`a[href="#${activeSection}"]`) : null
+      if (!link) {
+        indicator.style.opacity = '0'
+        return
+      }
+      indicator.style.opacity = '1'
+      indicator.style.width = `${link.offsetWidth}px`
+      indicator.style.transform = `translateX(${link.offsetLeft}px)`
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [activeSection])
+  const galleryStay = accommodations.find((stay) => stay.id === galleryStayId)
   const [lookupError, setLookupError] = useState('')
+  const [holdSubmitting, setHoldSubmitting] = useState(false)
+  const [holdConfirmation, setHoldConfirmation] = useState<{
+    bookingId: string
+    referenceNumber: string
+    expiresAt: string
+  } | null>(null)
+  const [now, setNow] = useState(() => Date.now())
   const previousPaymentStatuses = useRef<Map<string, string> | null>(null)
-  const paymentReportFormRef = useRef<HTMLFormElement>(null)
   const reviewButtonRef = useRef<HTMLButtonElement>(null)
   const closeReviewRef = useRef<HTMLButtonElement>(null)
 
-  const selectedStay =
-    accommodations.find((stay) => stay.id === selectedId) ?? accommodations[0]
+  // One booking can combine several accommodations (e.g. Bahay Hapag + Balai Delnor).
+  const selectedKey = selectedIds.join(',')
   const stayDays = daysBetween(checkInDate, checkOutDate)
-  const totals = useMemo(
-    () => calculateBookingTotal(selectedStay, guests, stayDays, tourType),
-    [selectedStay, guests, stayDays, tourType],
+  // Rates and maximum pax as they apply to this tour type and length (2+ days: overnight rates).
+  const overnightPricing = usesOvernightRates(tourType, stayDays)
+  const pricedStays = useMemo(() => priceAccommodations(accommodations, tourType, stayDays), [tourType, stayDays])
+  const selectedStays = useMemo(
+    () => pricedStays.filter((stay) => selectedKey.split(',').includes(stay.id)),
+    [pricedStays, selectedKey],
   )
+  const combinedStay = useMemo(() => combineAccommodations(selectedStays), [selectedStays])
+  // Pax whose entrance the room rate includes; null when every guest pays entrance.
+  const roomPax = !combinedStay.entranceFeeForAll && combinedStay.capacity > 0 ? combinedStay.capacity : null
+  const mainCount = countGuests(mainGuests)
+  const extraCount = countGuests(extraGuests)
+  const extraEntrance = entranceRates[overnightPricing ? 'OVERNIGHT' : tourType]
+  useEffect(() => {
+    setParty((current) => rebalanceParty(current, roomPax))
+  }, [roomPax])
+  const totals = useMemo(
+    () => calculateBookingTotal(selectedStays, guests, stayDays, tourType, roomPax === null ? undefined : extraGuests),
+    [selectedStays, guests, stayDays, tourType, roomPax, extraGuests],
+  )
+  const onlineCharge = Math.round((totals.depositRequired / (1 - 0.025)) * 100) / 100
+  const gatewayFeeAmount = Math.round((onlineCharge - totals.depositRequired) * 100) / 100
+  const cashBalanceDue = Math.round((totals.grandTotal - totals.depositRequired) * 100) / 100
   const guestCount = guests.adults + guests.seniorsPwd + guests.children
+  // Guests may go over the rooms' pax (extra heads pay entrance), up to one booking's cap.
+  const guestLimit = BOOKING_MAX_GUESTS
+  const overGuestLimit = guestCount > guestLimit
+  const availabilityKey = JSON.stringify([selectedKey, checkInDate, checkOutDate])
+  const datesHaveSoftHold = availabilityResult?.key === availabilityKey && availabilityResult.pendingHold
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(interval)
+  }, [])
+  const availabilityStatus = !checkInDate || !checkOutDate || checkOutDate <= checkInDate
+    ? 'idle'
+    : availabilityResult?.key === availabilityKey
+      ? availabilityResult.available ? 'available' : 'unavailable'
+      : availabilityErrorKey === availabilityKey ? 'error' : 'checking'
+
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(GUEST_BOOKING_DRAFT_KEY)
+    } catch (error) {
+      console.error('Could not clear the restored guest booking details from session storage:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!guestBookingDraft || window.location.hash !== '#booking') return
+    window.requestAnimationFrame(() => {
+      document.getElementById('booking')?.scrollIntoView()
+    })
+  }, [guestBookingDraft])
+
+  useEffect(() => {
+    if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) {
+      return
+    }
+    const controller = new AbortController()
+    const key = JSON.stringify([selectedKey, checkInDate, checkOutDate])
+    const check = () => {
+      fetchAvailability(selectedKey.split(','), checkInDate, checkOutDate, controller.signal)
+        .then(({ available, pendingHold, blocked }) => setAvailabilityResult({ key, available, pendingHold, blocked }))
+        .catch(() => {
+          if (!controller.signal.aborted) setAvailabilityErrorKey(key)
+        })
+    }
+    check()
+    // Re-check while the page is open, so dates freed by a cancellation (or newly
+    // confirmed by someone else) show up without the guest changing anything.
+    const interval = window.setInterval(check, 30_000)
+    const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      controller.abort()
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [selectedKey, checkInDate, checkOutDate])
 
   useEffect(() => {
     if (!user || !token) {
@@ -205,7 +464,7 @@ function CustomerPage() {
     const reviewButton = reviewButtonRef.current
     closeReviewRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowReview(false)
+      if (event.key === 'Escape') closeReview()
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -215,16 +474,62 @@ function CustomerPage() {
     }
   }, [showReview])
 
-  const changeGuestCount = (type: GuestType, delta: number) => {
-    setGuests((current) => ({
+  function closeReview() {
+    setShowReview(false)
+    setHoldConfirmation(null)
+  }
+
+  const changeGuestCount = (type: GuestType, delta: number, group: 'main' | 'extra' = 'main') => {
+    setParty((current) => ({
       ...current,
-      [type]: Math.max(0, current[type] + delta),
+      [group]: { ...current[group], [type]: Math.max(0, current[group][type] + delta) },
     }))
   }
 
-  const chooseStay = (stayId: string) => {
-    setSelectedId(stayId)
-    document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' })
+  const resetAvailabilityCheck = () => {
+    setAvailabilityResult(null)
+    setAvailabilityErrorKey(null)
+  }
+
+  /** Adds or removes an accommodation; a booking always keeps at least one. */
+  const toggleStay = (stayId: string) => {
+    if (selectedIds.length === 1 && selectedIds[0] === stayId) return
+    resetAvailabilityCheck()
+    setSelectedIds(orderedAccommodationIds(
+      selectedIds.includes(stayId) ? selectedIds.filter((id) => id !== stayId) : [...selectedIds, stayId],
+    ))
+  }
+
+  // Hero slideshow "Select space": book just that accommodation, then glide to the calculator.
+  const selectStayFromHero = (stayId: string) => {
+    if (selectedIds.length !== 1 || selectedIds[0] !== stayId) {
+      resetAvailabilityCheck()
+      setSelectedIds([stayId])
+    }
+    scrollToSection('booking')
+  }
+
+  const signInToBook = () => {
+    if (user) {
+      setShowReview(true)
+      return
+    }
+    setStorageError('')
+    try {
+      sessionStorage.setItem(GUEST_BOOKING_DRAFT_KEY, JSON.stringify({
+        selectedIds,
+        tourType,
+        checkInDate,
+        checkOutDate,
+        guests: mainGuests,
+        extraGuests,
+        paymentChoice,
+      }))
+    } catch {
+      setStorageError('Could not save your booking details. Check your browser storage settings and try again.')
+      return
+    }
+    window.location.assign('/login?next=preview')
   }
 
   const formattedDate = (date: string) => {
@@ -252,44 +557,56 @@ function CustomerPage() {
       setStorageError('Your sign-in session expired. Please sign in again.')
       return
     }
-    if (!paymentProofFile) {
-      setStorageError('Choose a screenshot of your downpayment or full payment before sending the inquiry.')
-      return
-    }
-
-    const booking: Omit<Booking, 'id' | 'createdAt' | 'status' | 'paymentStatus' | 'paymentAmount' | 'paidAmount' | 'payments' | 'paymentMethod' | 'paymentReference' | 'proofFileName' | 'hasPaymentProof'> = {
-      customerName: user.name,
-      customerContact: user.email,
-      accommodationId: selectedStay.id,
-      accommodationName: selectedStay.name,
+    const booking = {
+      accommodationIds: selectedIds,
       tourType,
       checkInDate,
       checkOutDate,
       guests: { ...guests },
-      guestCount,
-      estimatedTotal: totals.grandTotal,
-      depositRequired: totals.depositRequired,
+      ...(roomPax === null ? {} : { extraGuests: { ...extraGuests } }),
     }
 
     setPaymentSubmitting(true)
     try {
-      const reference = await createBookingRequest(token, booking, {
-        amount: paymentChoice === 'FULL' ? totals.grandTotal : totals.depositRequired,
-        method: paymentMethod,
-        reference: paymentReference.trim(),
-        payerAccount: payerAccount.trim(),
-        proof: paymentProofFile,
-      })
-      setBookingReference(reference)
-      setBookings(await fetchCustomerBookings(token))
+      const checkout = await createGcashCheckout(token, booking)
       setStorageError('')
-      setPaymentProofFile(null)
-      setPaymentReference('')
-      setPayerAccount('')
+      window.location.assign(checkout.checkoutUrl)
     } catch (error) {
-      setStorageError(error instanceof Error ? error.message : 'Could not send your inquiry.')
+      setStorageError(error instanceof Error ? error.message : 'Could not start GCash checkout.')
     } finally {
       setPaymentSubmitting(false)
+    }
+  }
+
+  const submitPendingHold = async () => {
+    if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) {
+      setStorageError('Choose a check-out date after check-in.')
+      return
+    }
+    if (!user || !token) {
+      setStorageError('Sign in before holding a date.')
+      return
+    }
+    setHoldSubmitting(true)
+    try {
+      const hold = await createPendingHold(token, {
+        accommodationIds: selectedIds,
+        tourType,
+        checkInDate,
+        checkOutDate,
+        guests: { ...guests },
+        ...(roomPax === null ? {} : { extraGuests: { ...extraGuests } }),
+      })
+      setStorageError('')
+      setHoldConfirmation(hold)
+      resetAvailabilityCheck()
+      fetchCustomerBookings(token)
+        .then(setBookings)
+        .catch((error: unknown) => console.error('Could not refresh bookings after placing a hold:', error))
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : 'Could not place the 24-hour hold.')
+    } finally {
+      setHoldSubmitting(false)
     }
   }
 
@@ -297,126 +614,90 @@ function CustomerPage() {
     event.preventDefault()
     const found = bookings.find(
       (booking) =>
-        booking.id.toLowerCase() === lookupReference.trim().toLowerCase() &&
-        booking.customerContact.toLowerCase() === user?.email.toLowerCase() &&
+        (booking.referenceNumber.toLowerCase() === lookupReference.trim().toLowerCase() ||
+          booking.id.toLowerCase() === lookupReference.trim().toLowerCase()) &&
         booking.customerContact.toLowerCase() === user?.email.toLowerCase(),
     )
     setLookupError(found ? '' : 'We couldn’t find an inquiry with that reference and contact.')
     setLookupBookingId(found?.id ?? '')
-    setPaymentReference('')
-    setPayerAccount('')
-    setPaymentChoice('DEPOSIT')
-    setPaymentAmountInput(found && found.paidAmount > 0
-      ? (found.estimatedTotal - found.paidAmount).toFixed(2)
-      : '')
-    setPaymentProofFile(null)
   }
 
   const selectCustomerBooking = (booking: Booking) => {
-    setLookupReference(booking.id)
+    setLookupReference(booking.referenceNumber)
     setLookupBookingId(booking.id)
     setLookupError('')
-    setPaymentReference('')
-    setPayerAccount('')
-    setPaymentChoice('DEPOSIT')
-    setPaymentAmountInput(booking.paidAmount > 0
-      ? (booking.estimatedTotal - booking.paidAmount).toFixed(2)
-      : '')
-    setPaymentProofFile(null)
-  }
-
-  const retryPayment = (booking: Booking) => {
-    selectCustomerBooking(booking)
-    window.setTimeout(() => {
-      paymentReportFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      paymentReportFormRef.current?.querySelector<HTMLInputElement | HTMLSelectElement>(
-        'input:not([type="file"]), select',
-      )?.focus({ preventScroll: true })
-    }, 0)
-  }
-
-  const reportPayment = async (event: FormEvent<HTMLFormElement>, booking: Booking) => {
-    event.preventDefault()
-    const reference = paymentReference.trim()
-    const account = payerAccount.trim()
-    if (!paymentProofFile || !token) {
-      setLookupError('Choose a screenshot of your payment before submitting.')
-      return
-    }
-    if (!reference || !account) {
-      setLookupError('Enter the transaction reference and the name and number of the account you paid from.')
-      return
-    }
-    const paymentAmount = booking.paidAmount > 0
-      ? Number(paymentAmountInput)
-      : paymentChoice === 'FULL' ? booking.estimatedTotal : booking.depositRequired
-    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0 || paymentAmount > booking.estimatedTotal - booking.paidAmount) {
-      setLookupError('Enter an amount greater than zero and no more than the remaining balance.')
-      return
-    }
-    setPaymentSubmitting(true)
-    try {
-      await sendPaymentProof(token, booking.id, {
-        paymentMethod,
-        paymentReference: reference,
-        payerAccount: account,
-        paymentAmount,
-        proof: paymentProofFile,
-      })
-      setBookings(await fetchCustomerBookings(token))
-      setLookupError('')
-      setPaymentReference('')
-      setPayerAccount('')
-      setPaymentProofFile(null)
-    } catch (error) {
-      setLookupError(error instanceof Error ? error.message : 'Could not submit payment proof.')
-    } finally {
-      setPaymentSubmitting(false)
-    }
   }
 
   const lookupBooking = bookings.find((booking) => booking.id === lookupBookingId)
 
   return (
     <div className="site-shell">
+      <AmbientAtmosphere />
+      <FallingLeaves />
       <header className="site-header">
-        <a className="brand" href="#home" aria-label="Tampisawan home">
-          <span className="brand-mark"><Waves size={22} strokeWidth={2.2} /></span>
-          <span className="brand-copy">
-            <strong>TAMPISAWAN</strong>
-            <small>927 Abelyn&apos;s Private Pool</small>
-          </span>
+        <a className="brand brand-logo" href="#home" aria-label="Tampisawan home">
+          <ResortLogo className="resort-logo-navbar" />
         </a>
-        <nav className="main-nav" aria-label="Main navigation">
-          <a href="#stays">Stay & unwind</a>
-          <a href="#amenities">Amenities</a>
-          <a href="#my-inquiry">My bookings & payments</a>
-          <a href="#booking">Plan your visit</a>
+        <nav className="main-nav" aria-label="Main navigation" ref={navRef}>
+          {navSections.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              className={activeSection === section.id ? 'is-active' : ''}
+              aria-current={activeSection === section.id ? 'location' : undefined}
+              onClick={(event) => {
+                event.preventDefault()
+                scrollToSection(section.id)
+              }}
+            >
+              {section.label}
+            </a>
+          ))}
+          <span className="main-nav-indicator" ref={navIndicatorRef} aria-hidden="true" />
         </nav>
         <div className="header-actions">
           {user ? (
             <>
-              <a className="header-account" href="/login">{user.email}</a>
-              <button className="header-signout" type="button" aria-label="Sign out" onClick={() => logout().catch((error: unknown) => setLogoutError(error instanceof Error ? error.message : 'Could not sign out.'))}><LogOut size={15} /></button>
+              <a className="header-account" href="/login">
+                {user.role === 'ADMIN' && <span className="header-role-badge is-admin">Admin</span>}
+                <span className="header-account-email">{user.email}</span>
+              </a>
+              <Tooltip label="Sign out" placement="bottom"><button className="header-signout" type="button" aria-label="Sign out" onClick={() => logout().catch((error: unknown) => setLogoutError(error instanceof Error ? error.message : 'Could not sign out.'))}><LogOut size={15} /></button></Tooltip>
             </>
-          ) : <a className="header-account" href="/login">Sign in</a>}
-          <a className="header-cta" href="#booking">Book a tour <ArrowUpRight size={16} /></a>
+          ) : null}
+          <Tooltip label={theme === 'light' ? 'Switch to night mode' : 'Switch to day mode'} placement="bottom">
+          <button
+            className="theme-toggle"
+            type="button"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'light' ? 'night' : 'day'} mode`}
+            aria-pressed={theme === 'dark'}
+          >
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            <span>{theme === 'light' ? 'Night' : 'Day'}</span>
+          </button>
+          </Tooltip>
+          <a className="header-cta" href={user ? '#booking' : '/login?next=preview'}>
+            {user ? 'Book a tour' : 'Sign In to Book'} <ArrowUpRight size={16} />
+          </a>
         </div>
         {logoutError && <p className="header-error" role="alert">{logoutError}</p>}
+        <span className="nav-progress" ref={scrollProgressRef} aria-hidden="true" />
       </header>
 
       <main>
         <section className="hero" id="home">
-          <div className="hero-copy">
-            <span className="eyebrow"><Sparkles size={14} /> YOUR PRIVATE POOL ESCAPE</span>
+          <div className="hero-copy" data-aos="fade-up">
+            <span className="eyebrow"><Sparkles size={14} /> {user ? 'YOUR PRIVATE POOL ESCAPE' : 'GUEST PREVIEW MODE'}</span>
+            <ResortLogo className="resort-logo-hero" />
             <h1>Slow down.<br />Stay a little <em>longer.</em></h1>
             <p>
               Make room for day tours, night swims, and overnight stays at
               Tampisawan.
             </p>
             <div className="hero-actions">
-              <a className="button button-light" href="#stays">
-                Explore accommodations <ArrowDown size={16} />
+              <a className="button button-light" href="#booking">
+                Preview Resort &amp; Rates <ArrowDown size={16} />
               </a>
               <span className="hero-hours"><Clock3 size={16} /> Day tours, night tours, and overnight stays</span>
             </div>
@@ -426,45 +707,58 @@ function CustomerPage() {
               <span><Check size={15} /> Easy rate preview</span>
             </div>
           </div>
-          <div className="hero-art" aria-label="Illustration of a private pool retreat" role="img">
-            <div className="art-sun" />
-            <div className="art-hill art-hill-back" />
-            <div className="art-hill art-hill-front" />
-            <div className="art-palm palm-one"><i /><i /><i /><i /><b /></div>
-            <div className="art-palm palm-two"><i /><i /><i /><i /><b /></div>
-            <div className="art-pool"><span /></div>
-            <div className="art-caption"><MapPin size={15} /> A little place to feel away</div>
-          </div>
+          <HeroShowcase onSelectStay={selectStayFromHero} onPlanVisit={() => scrollToSection('booking')} />
           <div className="hero-scroll"><span /> SCROLL TO EXPLORE</div>
         </section>
 
         <section className="intro-strip" aria-label="Stay details">
-          <div><span className="strip-icon"><Clock3 size={19} /></span><span><b>Flexible tour times</b><small>Day, night, or overnight</small></span></div>
-          <div><span className="strip-icon"><Users size={19} /></span><span><b>Up to 20 guests</b><small>Room and event space capacities</small></span></div>
-          <div><span className="strip-icon"><Waves size={19} /></span><span><b>Poolside moments</b><small>Bring your favorite people</small></span></div>
-          <a href="#rates">See all rates <ArrowRight size={16} /></a>
+          <div data-aos="fade-up"><span className="strip-icon"><Clock3 size={19} /></span><span><b>Flexible tour times</b><small>Day, night, or overnight</small></span></div>
+          <div data-aos="fade-up" data-aos-delay="100"><span className="strip-icon"><Users size={19} /></span><span><b>Up to 20 guests</b><small>Room and event space capacities</small></span></div>
+          <div data-aos="fade-up" data-aos-delay="200"><span className="strip-icon"><Waves size={19} /></span><span><b>Poolside moments</b><small>Bring your favorite people</small></span></div>
+          <a href="#rates" data-aos="fade-up" data-aos-delay="300">See all rates <ArrowRight size={16} /></a>
         </section>
 
         <section className="stays-section section-wrap" id="stays">
-          <div className="section-heading">
+          <div className="section-heading" data-aos="fade-up">
             <div>
               <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> FIND YOUR SPACE</span>
               <h2>Make yourself <em>at home.</em></h2>
-              <p>Pick the place that fits your people. Every stay is yours to make special.</p>
+              <p>Pick the place that fits your people, or combine several in one booking. Every stay is yours to make special.</p>
             </div>
             <a className="text-link" href="#rates">View rate details <ArrowUpRight size={16} /></a>
           </div>
           <div className="stay-grid">
             {accommodations.map((stay, index) => {
-              const isSelected = selectedId === stay.id
+              const isSelected = selectedIds.includes(stay.id)
+              const isOnlySelection = isSelected && selectedIds.length === 1
               return (
-                <article className={`stay-card ${isSelected ? 'is-selected' : ''}`} key={stay.id}>
-                  <div className={`stay-art stay-art-${index + 1}`}>
+                <article className={`stay-card ${stay.exclusiveWholeResort ? 'is-exclusive' : 'is-shared'} ${isSelected ? 'is-selected' : ''}`} key={stay.id} data-aos="fade-up" data-aos-delay={(index % 3) * 100}>
+                  <div className={`stay-art stay-art-${index + 1} ${stay.photos.length ? 'has-photo' : ''}`}>
+                    {stay.photos[0] && <img className="stay-art-photo" src={stay.photos[0].src} alt="" loading="lazy" decoding="async" />}
+                    <button
+                      type="button"
+                      className="stay-photos-button"
+                      aria-label={`View inside and outside photos of ${stay.name}`}
+                      onClick={() => setGalleryStayId(stay.id)}
+                    >
+                      <Images size={13} /> View photos{stay.photos.length > 0 && <span>{stay.photos.length}</span>}
+                    </button>
                     <span className="stay-art-icon">
                       {index === 3 || index === 7 ? <TentTree size={29} /> : index === 2 || index === 5 ? <Compass size={29} /> : <House size={29} />}
                     </span>
-                    <span className="stay-capacity"><Users size={14} /> Up to {stay.capacity}</span>
-                    {stay.entranceFeeForAll && <span className="fee-pill">Entrance fee applies</span>}
+                    <Tooltip label={`Maximum ${stay.capacity} guests (pax) for ${stay.name}. Combine stays for bigger groups.`}>
+                      <span className="stay-capacity" tabIndex={0}><Users size={14} /> Up to {stay.capacity}{stay.overnightCapacity ? ` (${stay.overnightCapacity} overnight)` : ''}</span>
+                    </Tooltip>
+                    {stay.entranceFeeForAll && (
+                      <Tooltip label="Every guest pays the entrance fee here, not only those above capacity.">
+                        <span className="fee-pill" tabIndex={0}>Entrance fee applies</span>
+                      </Tooltip>
+                    )}
+                    {stay.exclusiveWholeResort ? (
+                      <span className="gold-glass-badge"><Sparkles size={12} /> <span className="badge-label-full">Exclusive Solo Resort</span><span className="badge-label-short">Exclusive</span></span>
+                    ) : (
+                      <span className="shared-pool-badge"><Waves size={12} /> <span className="badge-label-full">Shared Pool Access</span><span className="badge-label-short">Shared Pool</span></span>
+                    )}
                   </div>
                   <div className="stay-card-body">
                     <div className="stay-title-row">
@@ -472,14 +766,44 @@ function CustomerPage() {
                         <h3>{stay.name}</h3>
                         <span className="stay-subtitle">{stay.category}</span>
                       </div>
-                      <div className="stay-price"><strong>{formatPeso(stay.baseRate)}</strong><small>per day / session</small></div>
+                      <div className="stay-price">
+                        <strong>{formatPeso(stay.overnightRate)}</strong><small>overnight · 22 hrs</small>
+                        <span className="stay-price-tour"><Sun size={11} aria-hidden="true" /> Day tour <b>{formatPeso(stay.baseRate)}</b></span>
+                        <span className="stay-price-tour"><Moon size={11} aria-hidden="true" /> Night tour <b>{formatPeso(stay.baseRate)}</b></span>
+                      </div>
                     </div>
                     <ul className="feature-list">
                       {stay.features.slice(0, 3).map((feature) => <li key={feature}><Check size={13} /> {feature}</li>)}
                     </ul>
-                    <button className={`select-stay ${isSelected ? 'selected' : ''}`} type="button" onClick={() => chooseStay(stay.id)}>
-                      {isSelected ? <><Check size={15} /> Selected</> : <>Choose this stay <ArrowRight size={15} /></>}
+                    {stay.exclusiveWholeResort ? (
+                      <div className="exclusive-resort-note gold-glass-callout">
+                        <ShieldCheck size={16} />
+                        <span>
+                          <b>Exclusive / Solo Use of Entire Resort &amp; Private Pool</b>
+                          <small>Includes 100% private solo use of the whole resort and private pool. Once confirmed, no other guests or bookings can check in during your dates.</small>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="shared-pool-note shared-pool-callout">
+                        <Waves size={15} />
+                        <span>
+                          <b>Standard Shared-Pool Access</b>
+                          <small>{stay.accessDescription}</small>
+                        </span>
+                      </div>
+                    )}
+                    <Tooltip label={isOnlySelection ? 'Every booking needs at least one accommodation' : ''}>
+                    <button
+                      className={`select-stay ${isSelected ? 'selected' : ''}`}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleStay(stay.id)}
+                    >
+                      {isSelected
+                        ? <><Check size={15} /> {isOnlySelection ? 'Selected' : 'Added · tap to remove'}</>
+                        : <>{selectedIds.length ? 'Add to booking' : 'Choose this stay'} <Plus size={15} /></>}
                     </button>
+                    </Tooltip>
                   </div>
                 </article>
               )
@@ -489,38 +813,92 @@ function CustomerPage() {
 
         <section className="booking-section" id="booking">
           <div className="booking-inner section-wrap">
-            <div className="booking-intro">
+            <div className="booking-intro" data-aos="fade-right">
               <span className="eyebrow eyebrow-light"><span className="eyebrow-dot" /> YOUR STAY, YOUR WAY</span>
               <h2>Plan your<br /><em>poolside escape.</em></h2>
-              <p>Choose a tour type, accommodation, dates, and guests. Accommodation and applicable excess-guest entrance fees are charged for each booked day.</p>
-              <div className="booking-note"><ShieldCheck size={18} /><span><b>Just a preview for now</b><small>Availability and final pricing are confirmed by the resort.</small></span></div>
+              <p>Choose a tour type, one or more accommodations, dates, and guests. Accommodation and applicable excess-guest entrance fees are charged for each booked day.</p>
+              <div className="booking-note"><ShieldCheck size={18} /><span><b>Preview dates and rates</b><small>Availability is checked against confirmed bookings; payment verification secures a stay.</small></span></div>
             </div>
 
-            <div className="booking-card">
+            <div className="booking-card" data-aos="fade-up" data-aos-delay="150">
               <div className="booking-card-head">
                 <div><span className="form-step">01</span><div><h3>Your booking details</h3><p>{tourDetails[tourType].label} · {tourDetails[tourType].duration}</p></div></div>
                 <span className="booking-tag"><Leaf size={13} /> TAMPISAWAN</span>
               </div>
-              <div className="form-field">
-                <label htmlFor="tour-type">Tour type</label>
-                <select id="tour-type" value={tourType} onChange={(event) => setTourType(event.target.value as TourType)}>
-                  <option value="OVERNIGHT">Overnight · 2:00 PM–12:00 NN</option>
-                  <option value="DAY_TOUR">Day Tour · 7:00 AM–5:00 PM</option>
-                  <option value="NIGHT_TOUR">Night Tour · 7:00 PM–6:00 AM</option>
-                </select>
-              </div>
-              <div className="form-field">
-                <label htmlFor="accommodation">Accommodation</label>
-                <select id="accommodation" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-                  {accommodations.map((stay) => <option value={stay.id} key={stay.id}>{stay.name} · {formatPeso(stay.baseRate)} / day</option>)}
-                </select>
-                <small className="field-hint">Capacity: up to {selectedStay.capacity} guests</small>
-              </div>
+              <fieldset className="form-field tour-picker">
+                <legend>Tour type</legend>
+                <div className="tour-options">
+                  {(['DAY_TOUR', 'NIGHT_TOUR', 'OVERNIGHT'] as TourType[]).map((type) => (
+                    <label className={`tour-option ${tourType === type ? 'is-checked' : ''}`} key={type}>
+                      <input type="radio" name="tour-type" value={type} checked={tourType === type} onChange={() => setTourType(type)} />
+                      {type === 'DAY_TOUR' ? <Sun size={16} /> : type === 'NIGHT_TOUR' ? <Moon size={16} /> : <Clock3 size={16} />}
+                      <b>{tourDetails[type].label}</b>
+                      <small>{tourDetails[type].checkIn}–{tourDetails[type].checkOut}</small>
+                      <small className="tour-option-fee">Entrance {formatPeso(entranceRates[type].adults)} adult · {formatPeso(entranceRates[type].children)} senior/child</small>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset className="form-field stay-picker">
+                <legend>Accommodations <span>Select one or more</span></legend>
+                <div className="stay-options">
+                  {pricedStays.map((stay) => {
+                    const checked = selectedIds.includes(stay.id)
+                    return (
+                      <label className={`stay-option ${checked ? 'is-checked' : ''}`} key={stay.id}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={checked && selectedIds.length === 1}
+                          onChange={() => toggleStay(stay.id)}
+                        />
+                        <span className="stay-option-box" aria-hidden="true">{checked && <Check size={11} strokeWidth={3} />}</span>
+                        <span className="stay-option-name">
+                          {stay.name}
+                          <small className="stay-option-pax"><Users size={10} aria-hidden="true" /> Up to {stay.capacity} pax{stay.exclusiveWholeResort && <em> · Whole resort</em>}</small>
+                        </span>
+                        <span className="stay-option-price">{formatPeso(stay.baseRate)}<small>{overnightPricing ? '/22 hrs' : tourType === 'NIGHT_TOUR' ? '/night tour' : '/day tour'}</small></span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <small className="field-hint">
+                  {selectedStays.length} selected · <b>room for {combinedStay.maxGuests} pax</b>
+                  {selectedStays.length > 1 && ` (${selectedStays.map((stay) => stay.capacity).join(' + ')})`}
+                </small>
+                <small className="field-hint tour-rate-hint">
+                  {overnightPricing
+                    ? <>Overnight rate{tourType === 'OVERNIGHT' ? ' (22 hours)' : ` for each of the ${stayDays} days`}: entrance is included for up to the room&apos;s pax; each extra guest pays {formatPeso(entranceRates.OVERNIGHT.adults)} per adult and {formatPeso(entranceRates.OVERNIGHT.children)} per senior/PWD/child (Gazebo, Calesa Tables, and Kubo ni Gerrant: every guest).</>
+                    : <>{tourDetails[tourType].label} ({tourDetails[tourType].checkIn}–{tourDetails[tourType].checkOut}): the room rate includes entrance for up to the room&apos;s pax; each extra guest pays {formatPeso(entranceRates[tourType].adults)} per adult and {formatPeso(entranceRates[tourType].children)} per senior/PWD/child (Gazebo, Calesa Tables, and Kubo ni Gerrant: every guest). 2 or more days uses the overnight rate.</>}
+                </small>
+                {combinedStay.exclusiveWholeResort ? (
+                  <div className="exclusive-resort-note booking-exclusive-note gold-glass-callout">
+                    <ShieldCheck size={16} />
+                    <span>
+                      <b>Exclusive / Solo Use of Entire Resort &amp; Private Pool</b>
+                      <small>
+                        {selectedStays.length > 1
+                          ? 'Your selection includes a whole-resort stay. Once confirmed, the other accommodations you picked are yours too, and no other customers can book or check in during your dates.'
+                          : 'After this booking is confirmed, no other customers can book or check in during your reserved dates.'}
+                      </small>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="shared-pool-note booking-exclusive-note shared-pool-callout">
+                    <Waves size={15} />
+                    <span>
+                      <b>Standard Shared-Pool Access</b>
+                      <small>{selectedStays.length > 1 ? 'Your accommodations include standard shared access to the resort pool and grounds alongside other guests.' : selectedStays[0]?.accessDescription}</small>
+                    </span>
+                  </div>
+                )}
+              </fieldset>
               <div className="date-fields">
                 <div className="form-field">
                   <label htmlFor="check-in">Check-in</label>
                   <input id="check-in" type="date" min={tomorrow()} value={checkInDate} onChange={(event) => {
                     const nextCheckIn = event.target.value
+                    resetAvailabilityCheck()
                     setCheckInDate(nextCheckIn)
                     if (checkOutDate <= nextCheckIn) setCheckOutDate(addDays(nextCheckIn, 1))
                   }} />
@@ -534,82 +912,198 @@ function CustomerPage() {
                     type="date"
                     min={tourType === 'DAY_TOUR' ? checkInDate : addDays(checkInDate, 1)}
                     value={tourType === 'DAY_TOUR' ? displayCheckoutDate(checkOutDate, tourType) : checkOutDate}
-                    onChange={(event) => setCheckOutDate(tourType === 'DAY_TOUR' ? addDays(event.target.value, 1) : event.target.value)}
+                    onChange={(event) => {
+                      resetAvailabilityCheck()
+                      setCheckOutDate(tourType === 'DAY_TOUR' ? addDays(event.target.value, 1) : event.target.value)
+                    }}
                   />
                   <small className="field-hint">{tourDetails[tourType].checkOut} · {stayDays} {stayDays === 1 ? 'day' : 'days'}</small>
                 </div>
               </div>
+              <p className={`availability-status availability-${availabilityStatus}`} role="status" aria-live="polite">
+                {availabilityStatus === 'checking'
+                  ? 'Checking these dates…'
+                  : availabilityStatus === 'available'
+                    ? datesHaveSoftHold
+                      ? 'Still open: another guest has a 24-hour hold on these dates, but holds don\'t reserve them. The first booking confirmed gets the dates.'
+                      : combinedStay.exclusiveWholeResort
+                        ? 'Dates look available. The whole resort is reserved for you once this booking is confirmed.'
+                        : 'No confirmed booking overlaps these dates.'
+                    : availabilityStatus === 'unavailable'
+                      ? availabilityResult?.blocked
+                        ? 'The resort is closed on these dates (maintenance or private use). Please choose other dates.'
+                        : selectedStays.length > 1
+                        ? 'At least one of your accommodations is already confirmed for these dates. Remove it or choose another range.'
+                        : 'These dates overlap with a confirmed booking. Choose another range.'
+                      : availabilityStatus === 'error'
+                        ? 'Availability could not be checked. Please contact the resort before booking.'
+                        : 'Choose a valid date range to check availability.'}
+              </p>
+              <p className="fcfs-note">
+                <Info size={14} aria-hidden="true" />
+                <span>
+                  <b>First come, first served.</b> Dates stay open to everyone until a booking is confirmed: by a verified 50% GCash deposit, or by cash received at the resort. Inquiries and 24-hour holds don&apos;t reserve a date.
+                </span>
+              </p>
               <div className="form-field guest-field">
-                <div className="guest-heading"><label>Guests</label><span>{guestCount} {guestCount === 1 ? 'guest' : 'guests'}</span></div>
+                <div className="guest-heading"><label>Guests</label><span>{guestCount} {guestCount === 1 ? 'guest' : 'guests'}{roomPax !== null && extraCount > 0 ? ` · ${mainCount} in the room + ${extraCount} extra` : ''}</span></div>
+                {roomPax !== null && (
+                  <div className="guest-group-heading">
+                    <b>1. In the room</b>
+                    <span>{mainCount} of {roomPax} pax · entrance included</span>
+                  </div>
+                )}
                 <div className="guest-list">
-                  {(Object.keys(guestLabels) as GuestType[]).map((type) => (
-                    <div className="guest-row" key={type}>
-                      <span><b>{guestLabels[type].title}</b><small>{guestLabels[type].detail}</small></span>
-                      <div className="guest-stepper">
-                        <button type="button" aria-label={`Remove one ${guestLabels[type].title.toLowerCase()}`} disabled={guests[type] === 0 || (type === 'adults' && guests.adults === 1)} onClick={() => changeGuestCount(type, -1)}><Minus size={14} /></button>
-                        <strong>{guests[type]}</strong>
-                        <button type="button" aria-label={`Add one ${guestLabels[type].title.toLowerCase()}`} onClick={() => changeGuestCount(type, 1)}><Plus size={14} /></button>
+                  {(Object.keys(guestLabels) as GuestType[]).map((type) => {
+                    const roomFull = roomPax !== null && mainCount >= roomPax
+                    const addLabel = guestCount >= guestLimit
+                      ? `One booking can have up to ${guestLimit} guests.`
+                      : roomFull ? 'The room is full. Add more people under Extra guests.' : ''
+                    const removeLocked = extraCount > 0 && roomPax !== null
+                    return (
+                      <div className="guest-row" key={type}>
+                        <span><b>{guestLabels[type].title}</b><small>{guestLabels[type].detail}</small></span>
+                        <div className="guest-stepper">
+                          <Tooltip label={removeLocked && mainGuests[type] > 0 ? 'Remove the extra guests first.' : ''} wrap>
+                            <button type="button" aria-label={`Remove one ${guestLabels[type].title.toLowerCase()} from the room`} disabled={removeLocked || mainGuests[type] === 0 || (type === 'adults' && mainGuests.adults === 1)} onClick={() => changeGuestCount(type, -1)}><Minus size={14} /></button>
+                          </Tooltip>
+                          <strong>{mainGuests[type]}</strong>
+                          <Tooltip label={addLabel} wrap>
+                            <button type="button" aria-label={`Add one ${guestLabels[type].title.toLowerCase()} to the room`} disabled={guestCount >= guestLimit || roomFull} onClick={() => changeGuestCount(type, 1)}><Plus size={14} /></button>
+                          </Tooltip>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
+                {roomPax !== null && (
+                  <>
+                    <div className="guest-group-heading is-extra">
+                      <b>2. Extra guests</b>
+                      <span>Pay entrance: {formatPeso(extraEntrance.adults)} adult · {formatPeso(extraEntrance.children)} senior/child{stayDays > 1 ? ' per day' : ''}</span>
+                    </div>
+                    {mainCount < roomPax ? (
+                      <p className="guest-extra-locked"><Info size={13} aria-hidden="true" /> Fill the {roomPax} {roomPax === 1 ? 'spot' : 'spots'} in the room first ({roomPax - mainCount} left). Then you can add extra guests here.</p>
+                    ) : (
+                      <div className="guest-list is-extra">
+                        {(Object.keys(guestLabels) as GuestType[]).map((type) => (
+                          <div className="guest-row" key={type}>
+                            <span><b>Extra {type === 'seniorsPwd' ? 'senior / PWD' : guestLabels[type].title.toLowerCase()}</b><small>+{formatPeso(extraEntrance[type])} each{stayDays > 1 ? ' per day' : ''}</small></span>
+                            <div className="guest-stepper">
+                              <button type="button" aria-label={`Remove one extra ${guestLabels[type].title.toLowerCase()}`} disabled={extraGuests[type] === 0} onClick={() => changeGuestCount(type, -1, 'extra')}><Minus size={14} /></button>
+                              <strong>{extraGuests[type]}</strong>
+                              <Tooltip label={guestCount >= guestLimit ? `One booking can have up to ${guestLimit} guests.` : ''} wrap>
+                                <button type="button" aria-label={`Add one extra ${guestLabels[type].title.toLowerCase()}`} disabled={guestCount >= guestLimit} onClick={() => changeGuestCount(type, 1, 'extra')}><Plus size={14} /></button>
+                              </Tooltip>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                {overGuestLimit ? (
+                  <p className="pax-limit-note is-over" role="alert">
+                    <AlertTriangle size={14} aria-hidden="true" />
+                    <span>One booking can have up to {guestLimit} guests. For a bigger group, please contact the resort.</span>
+                  </p>
+                ) : roomPax === null && guestCount > combinedStay.maxGuests ? (
+                  <p className="pax-limit-note">
+                    <Info size={14} aria-hidden="true" />
+                    <span>{guestCount - combinedStay.maxGuests} more than the room&apos;s {combinedStay.maxGuests} pax. That&apos;s fine: every guest pays the entrance fee, already in your total.</span>
+                  </p>
+                ) : null}
               </div>
 
               <div className="estimate-box">
                 <div className="estimate-heading"><span><Sparkles size={15} /> YOUR ESTIMATED TOTAL</span><small>PHP</small></div>
-                <div className="estimate-line"><span>{selectedStay.name} · {stayDays} {stayDays === 1 ? 'day' : 'days'} × {formatPeso(totals.dailyBaseRate)}</span><b>{formatPeso(totals.baseRate)}</b></div>
-                <div className="estimate-line"><span>{tourDetails[tourType].label} entrance fee · {totals.chargeableGuests} {selectedStay.entranceFeeForAll ? 'guest' : 'excess guest'}{totals.chargeableGuests === 1 ? '' : 's'} × {stayDays} {stayDays === 1 ? 'day' : 'days'}</span><b>{formatPeso(totals.entranceFees)}</b></div>
+                {selectedStays.map((stay) => (
+                  <div className="estimate-line" key={stay.id}><span>{stay.name} (room for {stay.capacity}) · {stayDays} {stayDays === 1 ? 'day' : 'days'} × {formatPeso(stay.baseRate)}{overnightPricing && tourType !== 'OVERNIGHT' ? ' (overnight rate)' : ''}</span><b>{formatPeso(stay.baseRate * totals.stayDays)}</b></div>
+                ))}
+                <div className="estimate-line"><span>{overnightPricing && tourType !== 'NIGHT_TOUR' ? 'Overnight' : tourDetails[tourType].label} entrance fee · {totals.chargeableGuests} {combinedStay.entranceFeeForAll ? 'guest' : 'extra guest'}{totals.chargeableGuests === 1 ? '' : 's'} × {stayDays} {stayDays === 1 ? 'day' : 'days'}</span><b>{formatPeso(totals.entranceFees)}</b></div>
                 <div className="estimate-divider" />
-                <div className="estimate-total"><span>Estimated total</span><b>{formatPeso(totals.grandTotal)}</b></div>
-                <div className="deposit-row"><span>50% deposit estimate</span><b>{formatPeso(totals.depositRequired)}</b></div>
+                <div className="estimate-line estimate-base"><span>Base Resort Rate (net to resort)</span><b>{formatPeso(totals.grandTotal)}</b></div>
+                {/* Two ways to pay, each with its own total */}
+                <p className="estimate-choose">Choose how you&apos;d like to pay:</p>
+                <div className="estimate-options" role="radiogroup" aria-label="How would you like to pay?">
+                  <div
+                    className={`estimate-option is-online${paymentChoice === 'ONLINE' ? ' is-selected' : ''}`}
+                    role="radio"
+                    aria-checked={paymentChoice === 'ONLINE'}
+                    aria-label="Online reservation with a GCash deposit"
+                    tabIndex={0}
+                    onClick={() => setPaymentChoice('ONLINE')}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPaymentChoice('ONLINE') } }}
+                  >
+                    <header><span className="estimate-option-radio" aria-hidden="true">{paymentChoice === 'ONLINE' && <Check size={12} strokeWidth={3} />}</span><b>1. Online Reservation · GCash</b><small>Reserves and blocks your dates once the payment is verified.</small></header>
+                    <div className="estimate-line"><span>50% Reservation Deposit</span><b>{formatPeso(totals.depositRequired)}</b></div>
+                    <div className="estimate-line"><span>GCash Gateway Fee (2.5%)</span><b>{formatPeso(gatewayFeeAmount)}</b></div>
+                    <div className="estimate-total"><span>Pay now via GCash</span><b>{formatPeso(onlineCharge)}</b></div>
+                    <div className="deposit-row"><span>Remaining 50% cash at check-in</span><b>{formatPeso(cashBalanceDue)}</b></div>
+                    <div className="deposit-row estimate-option-sum"><span>Estimated total (incl. GCash fee)</span><b>{formatPeso(totals.grandTotal + gatewayFeeAmount)}</b></div>
+                  </div>
+                  <div
+                    className={`estimate-option is-walkin${paymentChoice === 'WALKIN' ? ' is-selected' : ''}`}
+                    role="radio"
+                    aria-checked={paymentChoice === 'WALKIN'}
+                    aria-label="Walk-in, pay cash at the resort"
+                    tabIndex={0}
+                    onClick={() => setPaymentChoice('WALKIN')}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPaymentChoice('WALKIN') } }}
+                  >
+                    <header><span className="estimate-option-radio" aria-hidden="true">{paymentChoice === 'WALKIN' && <Check size={12} strokeWidth={3} />}</span><b>2. Walk-In · Cash</b><small>No reservation; same-day availability is checked on arrival.</small></header>
+                    <div className="estimate-line"><span>Online / GCash fee</span><b>{formatPeso(0)}</b></div>
+                    <div className="estimate-total"><span>Pay in cash on arrival</span><b>{formatPeso(totals.grandTotal)}</b></div>
+                    <div className="deposit-row estimate-option-sum"><span>Estimated total (cash)</span><b>{formatPeso(totals.grandTotal)}</b></div>
+                  </div>
+                </div>
                 <p className="estimate-disclaimer">
-                  {selectedStay.entranceFeeForAll
+                  {combinedStay.entranceFeeForAll
                     ? `Entrance fees apply to every guest for each of the ${stayDays} ${stayDays === 1 ? 'day' : 'days'}.`
-                    : `Entrance fees apply per day to guests above the ${selectedStay.capacity}-guest capacity.`}
+                    : `Entrance fees apply per day to guests above the ${combinedStay.capacity}-guest ${selectedStays.length > 1 ? 'combined capacity' : 'capacity'}.`}
+                  {' '}The gateway fee is shown separately from the resort rate.
                 </p>
               </div>
-              <button ref={reviewButtonRef} className="review-button" type="button" onClick={() => { setBookingReference(''); if (!user) { window.location.assign('/login?next=booking'); return }; setShowReview(true) }} disabled={!checkInDate || !checkOutDate || checkOutDate <= checkInDate || guestCount === 0}>
-                {user ? 'Review booking details' : 'Sign in to inquire'} <ArrowRight size={17} />
+              {storageError && <p className="customer-error" role="alert">{storageError}</p>}
+              <button ref={reviewButtonRef} className="review-button" type="button" onClick={signInToBook} disabled={!checkInDate || !checkOutDate || checkOutDate <= checkInDate || guestCount === 0 || overGuestLimit || availabilityStatus === 'checking' || availabilityStatus === 'unavailable'}>
+                {user
+                  ? paymentChoice === 'ONLINE' ? 'Review & pay deposit via GCash' : 'Review walk-in & get voucher'
+                  : 'Sign In to Book'} <ArrowRight size={17} />
               </button>
-              <p className="form-footnote">A downpayment is required before your inquiry can be sent.</p>
+              <p className="form-footnote">
+                {paymentChoice === 'ONLINE'
+                  ? 'Secure GCash checkout opens after you sign in. The booking is confirmed only after HitPay verifies payment.'
+                  : 'After you sign in, you get a walk-in voucher with a reference number. Pay in cash at the resort; dates are confirmed once the cash is received.'}
+              </p>
             </div>
           </div>
         </section>
 
         <section className="customer-followup section-wrap" id="my-inquiry">
-          <div className="customer-followup-copy">
+          <div className="customer-followup-copy" data-aos="fade-right">
             <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> CUSTOMER INQUIRY</span>
             <h2>Already sent an<br /><em>inquiry?</em></h2>
             <p>Check whether the resort has verified your payment. If you paid a downpayment, submit the remaining balance before checkout.</p>
             <div className="followup-note"><ShieldCheck size={17} /> Inquiries and payment reports are saved to the resort database.</div>
           </div>
-          <div className="followup-card">
+          <div className="followup-card" data-aos="fade-up" data-aos-delay="150">
             {paymentNotification && (
               <div className={`payment-notification ${paymentNotification.rejected ? 'is-rejected' : ''}`} role={paymentNotification.rejected ? 'alert' : 'status'}>
                 {paymentNotification.rejected ? <AlertTriangle size={16} /> : <Check size={16} />}
                 <span>{paymentNotification.message}</span>
-                {paymentNotification.rejected && (() => {
-                  const booking = bookings.find((item) => item.id === paymentNotification.bookingId)
-                  return booking && !['CANCELLED', 'DATE_UNAVAILABLE'].includes(booking.status) && booking.paymentStatus !== 'PAID' && booking.paymentStatus !== 'PENDING_REVIEW'
-                    ? <button className="payment-retry-button" type="button" onClick={() => retryPayment(booking)}>Try payment again</button>
-                    : null
-                })()}
                 <button type="button" aria-label="Dismiss notification" onClick={() => setPaymentNotification(null)}><X size={14} /></button>
               </div>
             )}
             {storageError && <p className="customer-error" role="alert">{storageError}</p>}
-            {bookingReference && <div className="inquiry-success"><Check size={17} /><span><b>Inquiry sent</b><small>Save this reference to check your request: <strong>{bookingReference}</strong></small></span></div>}
             {user && (
               <div className="customer-bookings">
                 <div className="customer-bookings-heading">
                   <h3>Your bookings</h3>
-                  <p>Select a booking to view its payment history or pay early.</p>
+                  <p>Review payment status, reference numbers, and digital receipts.</p>
                 </div>
                 {bookings.length === 0 ? (
                   <p className="customer-bookings-empty">Your bookings and payment options will appear here after you send an inquiry.</p>
                 ) : bookings.map((booking) => {
-                  const canPay = !['CANCELLED', 'DATE_UNAVAILABLE'].includes(booking.status) &&
-                    ['UNPAID', 'NOT_PAID', 'PARTIALLY_PAID'].includes(booking.paymentStatus)
                   const balance = Math.max(0, booking.estimatedTotal - booking.paidAmount)
                   const lastRejectedPayment = [...booking.payments].reverse().find((payment) => payment.status === 'NOT_RECEIVED')
                   return (
@@ -617,18 +1111,31 @@ function CustomerPage() {
                       <div>
                         <b>{booking.accommodationName}</b>
                         <small>{tourDetails[booking.tourType].label} · {formattedDate(booking.checkInDate)} – {formattedDate(displayCheckoutDate(booking.checkOutDate, booking.tourType))}</small>
+                        <small>Reference: {booking.referenceNumber}</small>
                         {lastRejectedPayment && booking.paymentStatus !== 'PENDING_REVIEW' && (
                           <span className="customer-booking-warning" role="alert">
                             The admin did not receive your {formatPeso(lastRejectedPayment.amount)} payment. Please try again.
                           </span>
                         )}
-                        <span className={booking.status === 'DATE_UNAVAILABLE' ? 'customer-date-unavailable' : ''}>
-                          {booking.status === 'DATE_UNAVAILABLE'
+                        <span className={booking.status === 'DATE_UNAVAILABLE' || booking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'customer-date-unavailable' : booking.status === 'PENDING_HOLD' ? 'customer-hold-status' : ''}>
+                          {booking.status === 'PENDING_HOLD'
+                            ? isActiveHold(booking, now)
+                              ? `Walk-in voucher · valid for ${formatHoldTimeLeft(holdMillisecondsLeft(booking.expiresAt, now))} · pay cash at the resort, or secure it now with GCash`
+                              : 'Pending hold expired · dates released'
+                            : booking.status === 'EXPIRED'
+                            ? 'Pending hold expired after 24 hours · dates released'
+                            : booking.status === 'CANCELLED_BY_GCASH_PRIORITY'
+                            ? 'Hold released · another guest\'s booking was confirmed first'
+                            : booking.status === 'DATE_UNAVAILABLE'
                             ? 'Payment received, but dates were secured by an earlier-verified booking. The resort will contact you about next steps.'
                             : booking.paymentStatus === 'PENDING_REVIEW'
                             ? 'Payment awaiting admin review'
-                            : booking.paymentStatus === 'PAID'
+                            : booking.paymentStatus === 'PAID' || booking.paymentStatus === 'PAID_CASH'
                               ? 'Fully paid'
+                              : booking.paymentTier === 'ONLINE_GCASH_RESERVATION' && booking.gatewayPaymentId
+                                ? `GCash deposit confirmed · ${formatPeso(booking.baseDepositAmount)} cash balance due at check-in`
+                                : booking.paymentTier === 'ONLINE_GCASH_RESERVATION'
+                                  ? `GCash payment not confirmed · due now ${formatPeso(booking.totalOnlinePaid)}`
                               : booking.status === 'CANCELLED'
                                 ? 'Booking cancelled'
                                 : booking.paidAmount > 0
@@ -642,17 +1149,8 @@ function CustomerPage() {
                           </small>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        className={booking.paymentStatus === 'PARTIALLY_PAID' && canPay ? 'customer-early-pay-button' : 'customer-booking-view-button'}
-                        onClick={() => selectCustomerBooking(booking)}
-                      >
-                        {booking.paymentStatus === 'PARTIALLY_PAID' && canPay
-                          ? 'Pay early'
-                          : canPay
-                            ? 'Make a payment'
-                            : 'View payment history'}
-                        <ArrowRight size={14} />
+                      <button type="button" className="customer-booking-view-button" onClick={() => { selectCustomerBooking(booking); setReceiptBooking(booking) }}>
+                        {booking.paymentTier === 'PENDING_CASH_INQUIRY' ? 'View voucher' : 'View receipt'} <ArrowRight size={14} />
                       </button>
                     </article>
                   )
@@ -662,7 +1160,7 @@ function CustomerPage() {
             {user ? <form className="lookup-form" onSubmit={findInquiry}>
               <h3>Check your inquiry</h3>
               <label htmlFor="lookup-reference">Inquiry reference</label>
-              <input id="lookup-reference" value={lookupReference} onChange={(event) => setLookupReference(event.target.value)} placeholder="e.g. TS-ABC123" required />
+              <input id="lookup-reference" value={lookupReference} onChange={(event) => setLookupReference(event.target.value)} placeholder="e.g. TRP-GCASH-20261115-8492" required />
               <label htmlFor="lookup-contact">Phone or email used on the request</label>
               <input id="lookup-contact" value={user.email || user.username} placeholder="Your account" readOnly required />
               <button className="review-button" type="submit">Find inquiry <ArrowRight size={16} /></button>
@@ -672,9 +1170,9 @@ function CustomerPage() {
               <div className="lookup-result">
                 <div className="lookup-result-top">
                   <span><b>{lookupBooking.accommodationName}</b><small>{tourDetails[lookupBooking.tourType].label} · {formattedDate(lookupBooking.checkInDate)} – {formattedDate(displayCheckoutDate(lookupBooking.checkOutDate, lookupBooking.tourType))} · {lookupBooking.guestCount} guests</small></span>
-                  <span className={`status-badge status-${lookupBooking.status.toLowerCase()}`}>{lookupBooking.status === 'PENDING' ? 'Under review' : lookupBooking.status === 'CONFIRMED' ? 'Confirmed' : lookupBooking.status === 'DATE_UNAVAILABLE' ? 'Dates unavailable' : 'Declined'}</span>
+                  <span className={`status-badge status-${lookupBooking.status.toLowerCase()}`}>{lookupBooking.status === 'PENDING' ? 'Under review' : lookupBooking.status === 'CONFIRMED' ? 'Confirmed' : lookupBooking.status === 'DATE_UNAVAILABLE' ? 'Dates unavailable' : lookupBooking.status === 'PENDING_HOLD' ? '24-hr hold' : lookupBooking.status === 'EXPIRED' ? 'Hold expired' : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Hold released' : 'Declined'}</span>
                 </div>
-                <p className="lookup-payment-state"><CircleDollarSign size={15} /> {lookupBooking.status === 'DATE_UNAVAILABLE' ? `Your payment of ${formatPeso(lookupBooking.paidAmount)} was received, but another verified booking secured these dates first. The resort will contact you to arrange a refund or discuss alternatives.` : lookupBooking.status === 'CANCELLED' ? 'This booking was cancelled by the resort.' : lookupBooking.paymentStatus === 'PAID' ? 'Full payment verified. Your booking is successful.' : lookupBooking.paymentStatus === 'PARTIALLY_PAID' ? `Payment received. Remaining balance: ${formatPeso(lookupBooking.estimatedTotal - lookupBooking.paidAmount)}. You can pay early; it must be received by ${formatPhilippineDateTime(balanceDueAt(lookupBooking.checkOutDate, lookupBooking.tourType))}, at least one hour before checkout.` : lookupBooking.paymentStatus === 'PENDING_REVIEW' ? `${lookupBooking.paidAmount > 0 ? `Your previous payment of ${formatPeso(lookupBooking.paidAmount)} was received. ` : ''}Payment proof for ${formatPeso(lookupBooking.paymentAmount ?? 0)} submitted${lookupBooking.paymentMethod ? ` via ${lookupBooking.paymentMethod.replace('_', ' ')}` : ''}; waiting for admin verification.` : lookupBooking.paymentStatus === 'NOT_PAID' ? 'The admin could not verify this payment. Submit a new screenshot to try again.' : 'Your inquiry and payment proof are waiting for admin verification.'}</p>
+                <p className="lookup-payment-state"><CircleDollarSign size={15} /> {lookupBooking.status === 'PENDING_HOLD' ? (isActiveHold(lookupBooking, now) ? `Heads-up hold only (first-come, first-served). It expires in ${formatHoldTimeLeft(holdMillisecondsLeft(lookupBooking.expiresAt, now))}. Pay ${formatPeso(lookupBooking.baseResortPrice)} in cash at the resort before then, or secure the date now with the GCash deposit.` : 'This pending hold has expired and the dates were released.') : lookupBooking.status === 'EXPIRED' ? 'This pending hold expired after 24 hours without payment, so the dates were released.' : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Another guest\'s booking for these dates was confirmed first (first come, first served), so this unpaid hold was released.' : lookupBooking.status === 'DATE_UNAVAILABLE' ? `Your payment of ${formatPeso(lookupBooking.paidAmount)} was received, but another confirmed booking secured these dates first. The resort will contact you to arrange a refund or discuss alternatives.` : lookupBooking.status === 'CANCELLED' ? 'This booking was cancelled by the resort.' : lookupBooking.paymentStatus === 'PAID_CASH' ? 'Walk-in cash payment received in full. Your booking is confirmed.' : lookupBooking.paymentStatus === 'PAID' ? 'Full payment verified. Your booking is successful.' : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' && lookupBooking.gatewayPaymentId ? `GCash payment confirmed. The remaining ${formatPeso(Math.max(0, lookupBooking.baseResortPrice - lookupBooking.paidAmount))} base balance is due in cash at check-in.` : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? `GCash payment is awaiting HitPay confirmation. Total due now: ${formatPeso(lookupBooking.totalOnlinePaid)}.` : lookupBooking.paymentStatus === 'PENDING_REVIEW' ? 'Your manual payment proof is waiting for admin review.' : lookupBooking.paymentStatus === 'NOT_PAID' ? 'The payment was not confirmed.' : 'Your booking is waiting for payment confirmation.'}</p>
                 {lookupBooking.status === 'DATE_UNAVAILABLE' && (
                   <p className="customer-date-unavailable">
                     To arrange a refund or discuss alternatives, message the resort on{' '}
@@ -699,57 +1197,20 @@ function CustomerPage() {
                     </div>
                   ))}
                 </div>
-                {(['UNPAID', 'NOT_PAID', 'PARTIALLY_PAID'].includes(lookupBooking.paymentStatus)) && !['CANCELLED', 'DATE_UNAVAILABLE'].includes(lookupBooking.status) && (
-                  <form ref={paymentReportFormRef} className="payment-report-form" onSubmit={(event) => reportPayment(event, lookupBooking)}>
-                    <b>{lookupBooking.paidAmount > 0 ? `Pay any amount toward the remaining ${formatPeso(lookupBooking.estimatedTotal - lookupBooking.paidAmount)} balance` : `Payment required: at least ${formatPeso(lookupBooking.depositRequired)}`}</b>
-                    {lookupBooking.paidAmount === 0 && (
-                      <>
-                        <label htmlFor="payment-amount">Choose payment amount</label>
-                        <select id="payment-amount" value={paymentChoice} onChange={(event) => setPaymentChoice(event.target.value as 'DEPOSIT' | 'FULL')} required>
-                          <option value="DEPOSIT">Downpayment · {formatPeso(lookupBooking.depositRequired)}</option>
-                          <option value="FULL">Full payment · {formatPeso(lookupBooking.estimatedTotal)}</option>
-                        </select>
-                      </>
-                    )}
-                    {lookupBooking.paidAmount > 0 && (
-                      <>
-                        <label htmlFor="early-payment-amount">Payment amount (you may pay early)</label>
-                        <input id="early-payment-amount" type="number" min="0.01" max={lookupBooking.estimatedTotal - lookupBooking.paidAmount} step="0.01" value={paymentAmountInput} onChange={(event) => setPaymentAmountInput(event.target.value)} required />
-                      </>
-                    )}
-                    <label htmlFor="payment-method">Payment method</label>
-                    <select id="payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)} required>
-                      <option value="GCASH">GCash</option>
-                      <option value="MAYA">Maya</option>
-                      <option value="BANK_TRANSFER">Bank transfer</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                    <p className="payment-instructions">{paymentInstructions(paymentMethod)}</p>
-                    <label htmlFor="payment-reference">Payment reference number</label>
-                    <input id="payment-reference" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Transaction/reference number" maxLength={120} required />
-                    <label htmlFor="payment-payer-account">Account name and number used to pay</label>
-                    <input id="payment-payer-account" value={payerAccount} onChange={(event) => setPayerAccount(event.target.value)} placeholder="GCash/Maya number or bank account" maxLength={200} required />
-                    <small>Only share the account name and number used for this transfer. Never share your PIN, password, or OTP.</small>
-                    <label htmlFor="payment-proof">Payment screenshot (PNG, JPEG, or WebP; max 5 MB)</label>
-                    <input id="payment-proof" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setPaymentProofFile(event.target.files?.[0] ?? null)} required />
-                    {paymentProofFile && <small>Selected: {paymentProofFile.name}</small>}
-                    <button className="select-stay selected" type="submit" disabled={paymentSubmitting}>{paymentSubmitting ? 'Submitting…' : 'Send payment for verification'} <ArrowRight size={14} /></button>
-                    <small>The admin must verify the payment before it is counted as received. Balance is due at least one hour before checkout.</small>
-                  </form>
-                )}
+                <button className="customer-booking-view-button" type="button" onClick={() => setReceiptBooking(lookupBooking)}>View official receipt <ArrowRight size={14} /></button>
               </div>
             )}
           </div>
         </section>
 
         <section className="amenities-section section-wrap" id="amenities">
-          <div className="amenities-copy">
+          <div className="amenities-copy" data-aos="fade-right">
             <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> LITTLE EXTRAS, BIG MEMORIES</span>
             <h2>More time for<br /><em>the good stuff.</em></h2>
             <p>Take a dip, start a friendly match, or make an evening of it. Enjoy these shared amenities during your stay.</p>
             <a className="text-link" href="#booking">Start planning <ArrowUpRight size={16} /></a>
           </div>
-          <div className="amenity-panel">
+          <div className="amenity-panel" data-aos="fade-left" data-aos-delay="150">
             <div className="amenity-panel-top"><span className="amenity-symbol"><Sparkles size={19} /></span><span><b>Included amenities</b><small>Make the most of your time together</small></span></div>
             {amenityGroups.map((group, index) => (
               <ul className="amenity-list" key={index}>
@@ -763,79 +1224,175 @@ function CustomerPage() {
         <section className="rates-section" id="rates">
           <div className="section-wrap rates-inner">
             <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> GOOD TO KNOW</span>
-            <div className="rates-heading">
+            <div className="rates-heading" data-aos="fade-up">
               <h2>Simple rates.<br /><em>More good times.</em></h2>
-              <p>Choose an Overnight stay (2:00 PM–12:00 NN), Day Tour (7:00 AM–5:00 PM), or Night Tour (7:00 PM–6:00 AM). The listed accommodation rate and applicable entrance fees are charged for each booked day.</p>
+              <p>Choose a Day Tour (7:00 AM–5:00 PM), Night Tour (7:00 PM–6:00 AM), or Overnight stay (22 hours, 2:00 PM–12:00 NN). Day and Night Tours share one room rate, and Overnight has its own. Every rate includes entrance for up to the room&apos;s pax; extra guests pay that tour&apos;s entrance fee. Each stay card shows both rates.</p>
             </div>
             <div className="rate-details">
-              <div className="rate-detail-card"><span className="rate-detail-icon"><Users size={19} /></span><div><b>Day Tour entrance · 7:00 AM–5:00 PM</b><p>Adult ₱150 · Senior / PWD ₱120 · Child (10 years old and below) ₱120</p></div></div>
-              <div className="rate-detail-card"><span className="rate-detail-icon"><Users size={19} /></span><div><b>Night Tour entrance · 7:00 PM–6:00 AM</b><p>Adult ₱250 · Senior / PWD ₱150 · Child (10 years old and below) ₱150</p></div></div>
-              <div className="rate-detail-card"><span className="rate-detail-icon"><ShieldCheck size={19} /></span><div><b>Room capacity</b><p>For most stays, entrance fees are charged for guests above the listed capacity. Gazebo, Calesa Tables, and Kubo ni Gerrant have entrance fees for all guests.</p></div></div>
+              <div className="rate-detail-card rate-day" data-aos="fade-up" data-aos-delay="0">
+                <span className="rate-detail-icon"><Sun size={19} /></span>
+                <div>
+                  <b>Day Tour entrance</b>
+                  <span className="rate-time">7:00 AM–5:00 PM</span>
+                  <ul className="rate-prices">
+                    <li><span>Adult</span><strong>₱150</strong></li>
+                    <li><span>Senior / PWD</span><strong>₱120</strong></li>
+                    <li><span>Child (10 years old and below)</span><strong>₱120</strong></li>
+                  </ul>
+                  <p className="rate-detail-note">Entrance is included for up to the room&apos;s pax; extra guests pay these rates. Example: Abelyn&apos;s Cabin Glass Day Tour is ₱6,000 for up to 8 guests, plus ₱150 for each extra adult.</p>
+                </div>
+              </div>
+              <div className="rate-detail-card rate-night" data-aos="fade-up" data-aos-delay="100">
+                <span className="rate-detail-icon"><Moon size={19} /></span>
+                <div>
+                  <b>Night Tour entrance</b>
+                  <span className="rate-time">7:00 PM–6:00 AM</span>
+                  <ul className="rate-prices">
+                    <li><span>Adult</span><strong>₱250</strong></li>
+                    <li><span>Senior / PWD</span><strong>₱150</strong></li>
+                    <li><span>Child (10 years old and below)</span><strong>₱150</strong></li>
+                  </ul>
+                  <p className="rate-detail-note">Night Tour and Overnight: entrance is included for up to the room&apos;s pax; extra guests pay these rates. Example: Abelyn&apos;s Cabin Glass Night Tour is ₱6,000 for up to 8 guests, plus ₱250 for each extra adult.</p>
+                </div>
+              </div>
+              <div className="rate-detail-card rate-pax" data-aos="fade-up" data-aos-delay="200">
+                <span className="rate-detail-icon"><ShieldCheck size={19} /></span>
+                <div>
+                  <b>Maximum pax</b>
+                  <ul className="rate-pax-list">
+                    {accommodations.map((stay) => <li key={stay.id}><span>{stay.name}</span><strong>{stay.capacity}{stay.overnightCapacity ? <small> ({stay.overnightCapacity} overnight)</small> : null}</strong></li>)}
+                  </ul>
+                  <p>Need more room? Combine accommodations in one booking. Gazebo, Calesa Tables, and Kubo ni Gerrant have entrance fees for all guests.</p>
+                </div>
+              </div>
             </div>
-            <p className="rates-caveat">Multi-day bookings multiply the accommodation rate and applicable entrance fees by each booked day. Capacity is included before entrance fees apply, counting adults first, then seniors/PWD, then children; Gazebo, Calesa Tables, and Kubo ni Gerrant charge entrance fees for all guests. The existing overnight option uses the Night Tour entrance-fee rates. Please confirm availability and final charges with Tampisawan before payment.</p>
+            <p className="rates-caveat" data-aos="fade-up">Day and Night Tours (one day) use the same room rate. Overnight stays (22 hours) and every booking of 2 or more days use the overnight rate for each day; for example, Abelyn's Cabin Glass for 3 days is 3 × ₱7,500 = ₱22,500. Every rate includes entrance for up to the room's pax: guests fill the room first, and each extra guest pays that tour's entrance fee (Day Tour ₱150 adult, ₱120 senior/child; Night Tour and Overnight ₱250 adult, ₱150 senior/child); Gazebo, Calesa Tables, and Kubo ni Gerrant charge entrance for every guest. Groups bigger than the room's pax are welcome, up to 100 guests per booking. Please confirm availability and final charges with Tampisawan before payment.</p>
           </div>
         </section>
       </main>
 
       <footer className="site-footer">
-        <a className="brand footer-brand" href="#home">
-          <span className="brand-mark"><Waves size={20} /></span>
-          <span className="brand-copy"><strong>TAMPISAWAN</strong><small>927 Abelyn&apos;s Private Pool</small></span>
+        <a className="brand footer-brand" href="#home" aria-label="Tampisawan home">
+          <ResortLogo className="resort-logo-footer" />
         </a>
         <span className="footer-note">Make space for a little getaway.</span>
         <a className="footer-top" href="#home">Back to top <ArrowUpRight size={15} /></a>
       </footer>
 
       {showReview && (
-        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowReview(false) }}>
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeReview() }}>
           <section className="review-modal inquiry-modal" role="dialog" aria-modal="true" aria-labelledby="review-title">
-            <button ref={closeReviewRef} className="modal-close" type="button" aria-label="Close preview" onClick={() => setShowReview(false)}><X size={19} /></button>
-            <span className="modal-icon"><ClipboardList size={22} /></span>
-            <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> {bookingReference ? 'INQUIRY SENT' : 'SEND AN INQUIRY'}</span>
-            <h2 id="review-title">{bookingReference ? <>Your request is<br /><em>on its way.</em></> : <>One step closer<br /><em>to your getaway.</em></>}</h2>
-            <p className="modal-copy">{bookingReference ? <>Payment proof is attached to inquiry <strong>{bookingReference}</strong>. The resort will verify the payment before confirming your booking.</> : 'Choose a downpayment or full payment and attach the transaction screenshot. The resort will verify it before confirming your booking.'}</p>
+            <button ref={closeReviewRef} className="modal-close" type="button" aria-label="Close preview" onClick={closeReview}><X size={19} /></button>
+            {holdConfirmation ? (() => {
+              const heldBooking = bookings.find((booking) => booking.id === holdConfirmation.bookingId)
+              return (
+                <div className="hold-confirmation">
+                  <span className="modal-icon hold-icon"><Hourglass size={22} /></span>
+                  <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> WALK-IN CONFIRMATION</span>
+                  <h2 id="review-title">You&apos;re set for<br /><em>a walk-in.</em></h2>
+                  <p className="modal-copy">We let the resort know you&apos;re coming and paying in cash. Show this reference or your voucher at the resort.</p>
+                  <div className="hold-reference">
+                    <span>Walk-in reference</span>
+                    <b>{holdConfirmation.referenceNumber}</b>
+                  </div>
+                  <div className="hold-timer-card">
+                    <span>Voucher held for</span>
+                    <HoldCountdown expiresAt={holdConfirmation.expiresAt} />
+                    <small>{new Date(holdConfirmation.expiresAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (Philippine time)</small>
+                  </div>
+                  <div className="review-details">
+                    <div><span>{selectedStays.length > 1 ? 'Accommodations' : 'Accommodation'}</span><b>{combinedStay.name}</b></div>
+                    <div><span>Check-in</span><b>{formattedDate(checkInDate)} · {tourDetails[tourType].checkIn}</b></div>
+                    <div className="review-total"><span>Cash due at the resort</span><b>{formatPeso(totals.grandTotal)}</b></div>
+                  </div>
+                  <p className="hold-disclaimer">
+                    First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid for 24 hours.
+                  </p>
+                  <button type="button" className="review-button modal-done" disabled={!heldBooking} onClick={() => heldBooking && setReceiptBooking(heldBooking)}>
+                    {heldBooking ? 'View & print walk-in voucher' : 'Preparing your voucher…'} <ArrowRight size={16} />
+                  </button>
+                  <button type="button" className="hold-secondary-button" onClick={closeReview}>Done</button>
+                </div>
+              )
+            })() : paymentChoice === 'WALKIN' ? (<>
+            <span className="modal-icon hold-icon"><Wallet size={22} /></span>
+            <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> WALK-IN · CASH</span>
+            <h2 id="review-title">Pay in cash<br /><em>at the resort.</em></h2>
+            <p className="modal-copy">No online fee. Confirm to get a walk-in voucher with your reference number, then pay the full amount in cash at the resort.</p>
             <div className="review-details">
-              <div><span>Accommodation</span><b>{selectedStay.name}</b></div>
+              <div><span>{selectedStays.length > 1 ? 'Accommodations' : 'Accommodation'}</span><b>{combinedStay.name}</b></div>
               <div><span>Tour type</span><b>{tourDetails[tourType].label} · {tourDetails[tourType].duration}</b></div>
               <div><span>Check-in</span><b>{formattedDate(checkInDate)} · {tourDetails[tourType].checkIn}</b></div>
               <div><span>{tourType === 'DAY_TOUR' ? 'Last tour day' : 'Check-out'} · {stayDays} {stayDays === 1 ? 'day' : 'days'}</span><b>{formattedDate(displayCheckoutDate(checkOutDate, tourType))} · {tourDetails[tourType].checkOut}</b></div>
-              <div><span>Guests</span><b>{guestCount} total</b></div>
-              <div className="review-total"><span>Estimated total</span><b>{formatPeso(totals.grandTotal)}</b></div>
+              <div><span>Guests</span><b>{roomPax !== null && extraCount > 0 ? `${guestCount} (${mainCount} in the room + ${extraCount} extra)` : `${guestCount} (room for ${combinedStay.maxGuests})`}</b></div>
+              <div><span>Online / GCash fee</span><b>{formatPeso(0)}</b></div>
+              <div className="review-total"><span>Pay in cash at the resort</span><b>{formatPeso(totals.grandTotal)}</b></div>
             </div>
-            {bookingReference ? (
-              <button className="review-button modal-done" type="button" onClick={() => setShowReview(false)}>Done <Check size={16} /></button>
+            <div className="inquiry-submit-form">
+              <div className="signed-in-identity"><ShieldCheck size={17} /><span><b>{user?.name}</b><small>Signed in as {user?.email}</small></span></div>
+              {storageError && <p className="customer-error" role="alert">{storageError}</p>}
+              <button className="review-button modal-done" type="button" onClick={submitPendingHold} disabled={paymentSubmitting || holdSubmitting}>
+                {holdSubmitting ? 'Creating your voucher…' : 'Confirm walk-in & get voucher'} <ArrowRight size={16} />
+              </button>
+              <p className="hold-disclaimer">
+                First come, first served: a walk-in does not reserve the date. Your voucher is held for 24 hours; the dates are yours once the cash is paid at the resort, as long as no one else has confirmed them first. To lock the dates now, choose the online GCash reservation instead.
+              </p>
+              <button className="hold-secondary-button" type="button" onClick={() => setPaymentChoice('ONLINE')} disabled={holdSubmitting}>
+                Switch to online GCash reservation
+              </button>
+            </div>
+            </>) : (<>
+            <span className="modal-icon"><ClipboardList size={22} /></span>
+            <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> SECURE YOUR DATES</span>
+            <h2 id="review-title">One step closer<br /><em>to your getaway.</em></h2>
+            <p className="modal-copy">Review the resort rate and deposit breakdown, then continue to HitPay&apos;s secure GCash checkout. Your dates are confirmed only after the signed payment notification is verified.</p>
+            <div className="review-details">
+              <div><span>{selectedStays.length > 1 ? 'Accommodations' : 'Accommodation'}</span><b>{combinedStay.name}</b></div>
+              <div><span>Tour type</span><b>{tourDetails[tourType].label} · {tourDetails[tourType].duration}</b></div>
+              <div><span>Check-in</span><b>{formattedDate(checkInDate)} · {tourDetails[tourType].checkIn}</b></div>
+              <div><span>{tourType === 'DAY_TOUR' ? 'Last tour day' : 'Check-out'} · {stayDays} {stayDays === 1 ? 'day' : 'days'}</span><b>{formattedDate(displayCheckoutDate(checkOutDate, tourType))} · {tourDetails[tourType].checkOut}</b></div>
+              <div><span>Guests</span><b>{roomPax !== null && extraCount > 0 ? `${guestCount} (${mainCount} in the room + ${extraCount} extra)` : `${guestCount} (room for ${combinedStay.maxGuests})`}</b></div>
+              <div><span>Base Resort Rate (net to resort)</span><b>{formatPeso(totals.grandTotal)}</b></div>
+              <div><span>50% Reservation Deposit</span><b>{formatPeso(totals.depositRequired)}</b></div>
+              <div><span>Online Gateway Fee (2.5%)</span><b>{formatPeso(gatewayFeeAmount)}</b></div>
+              <div className="review-total"><span>Total GCash due now</span><b>{formatPeso(onlineCharge)}</b></div>
+              <div><span>Cash balance due at check-in</span><b>{formatPeso(cashBalanceDue)}</b></div>
+            </div>
+            {combinedStay.exclusiveWholeResort ? (
+              <div className="exclusive-resort-note inquiry-exclusive-note gold-glass-callout">
+                <ShieldCheck size={16} />
+                <span>
+                  <b>Exclusive / Solo Use of Entire Resort &amp; Private Pool</b>
+                  <small>Once your GCash reservation deposit is confirmed, no other guests or bookings can check in during your reserved dates.</small>
+                </span>
+              </div>
             ) : (
-              <form className="inquiry-submit-form" onSubmit={submitInquiry}>
-                <div className="signed-in-identity"><ShieldCheck size={17} /><span><b>{user?.name}</b><small>Signed in as {user?.email}</small></span></div>
-                <label htmlFor="initial-payment-amount">Payment amount</label>
-                <select id="initial-payment-amount" value={paymentChoice} onChange={(event) => setPaymentChoice(event.target.value as 'DEPOSIT' | 'FULL')}>
-                  <option value="DEPOSIT">Downpayment (50%) · {formatPeso(totals.depositRequired)}</option>
-                  <option value="FULL">Full payment · {formatPeso(totals.grandTotal)}</option>
-                </select>
-                <label htmlFor="initial-payment-method">Payment method</label>
-                <select id="initial-payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}>
-                  <option value="GCASH">GCash</option>
-                  <option value="MAYA">Maya</option>
-                  <option value="BANK_TRANSFER">Bank transfer</option>
-                  <option value="OTHER">Other</option>
-                </select>
-                <p className="payment-instructions">{paymentInstructions(paymentMethod)}</p>
-                <label htmlFor="initial-payment-reference">Transaction reference number</label>
-                <input id="initial-payment-reference" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Transaction/reference number" maxLength={120} required />
-                <label htmlFor="initial-payer-account">Account name and number used to pay</label>
-                <input id="initial-payer-account" value={payerAccount} onChange={(event) => setPayerAccount(event.target.value)} placeholder="GCash/Maya number or bank account" maxLength={200} required />
-                <small>Only share the account name and number used for this transfer. Never share your PIN, password, or OTP.</small>
-                <label htmlFor="initial-payment-proof">Payment screenshot (PNG, JPEG, or WebP; max 5 MB)</label>
-                <input id="initial-payment-proof" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setPaymentProofFile(event.target.files?.[0] ?? null)} required />
-                {paymentProofFile && <small>Selected: {paymentProofFile.name}</small>}
-                {storageError && <p className="customer-error" role="alert">{storageError}</p>}
-                <button className="review-button modal-done" type="submit" disabled={paymentSubmitting}>{paymentSubmitting ? 'Sending…' : 'Send payment and inquiry'} <ArrowRight size={16} /></button>
-                <p className="form-footnote">Your inquiry is sent after payment proof is attached. Admin verification is required.</p>
-              </form>
+              <div className="shared-pool-note inquiry-exclusive-note shared-pool-callout">
+                <Waves size={15} />
+                <span>
+                  <b>Standard Shared-Pool Access</b>
+                  <small>Your booking includes standard shared access to the resort pool and grounds alongside other guests.</small>
+                </span>
+              </div>
             )}
+            <form className="inquiry-submit-form" onSubmit={submitInquiry}>
+              <div className="signed-in-identity"><ShieldCheck size={17} /><span><b>{user?.name}</b><small>Signed in as {user?.email}</small></span></div>
+              {storageError && <p className="customer-error" role="alert">{storageError}</p>}
+              <span className="priority-badge"><ShieldCheck size={12} /> TOP PRIORITY • INSTANT CONFIRMATION</span>
+              <button className="review-button modal-done priority-button" type="submit" disabled={paymentSubmitting || holdSubmitting}>
+                {paymentSubmitting ? 'Opening secure checkout…' : 'Continue to GCash checkout'} <ArrowRight size={16} />
+              </button>
+              <p className="form-footnote">HitPay securely handles the payment. Do not share your GCash PIN, password, or OTP.</p>
+              <button className="hold-secondary-button" type="button" onClick={() => setPaymentChoice('WALKIN')} disabled={paymentSubmitting}>
+                <Wallet size={15} /> Pay in cash at the resort instead (walk-in)
+              </button>
+            </form>
+            </>)}
           </section>
         </div>
       )}
+      {galleryStay && <StayGallery stay={galleryStay} onClose={() => setGalleryStayId(null)} />}
+      {receiptBooking && <BookingReceiptModal booking={receiptBooking} onClose={() => setReceiptBooking(null)} />}
     </div>
   )
 }
@@ -844,14 +1401,35 @@ function App() {
   const route = window.location.pathname.replace(/\/+$/, '') || '/'
   const adminRoute = route === '/admin' || route === '/admin/dashboard'
   const customerRoute = route === '/customer/booking'
+  // HitPay returns customers to /booking/return/<reference>?reference=<request id>&status=<status>.
+  // The status is only used to choose a page; payment is confirmed by the server-side webhook.
+  const hitpayReturnStatus = route.startsWith('/booking/return/')
+    ? new URLSearchParams(window.location.search).get('status')?.toLowerCase() ?? ''
+    : null
+  const hitpayReturnCancelled = hitpayReturnStatus !== null && ['canceled', 'cancelled', 'failed', 'expired'].includes(hitpayReturnStatus)
+  const bookingSuccessRoute = route === '/booking/success' || (hitpayReturnStatus !== null && !hitpayReturnCancelled)
+  const bookingCancelledRoute = route === '/booking/cancelled' || hitpayReturnCancelled
+  const previewRoute = route === '/preview'
+  const loginRoute = route === '/login'
+  const landingRoute = route === '/' || previewRoute
+
+  useGlassSpotlight()
 
   return (
     <AuthProvider>
-      {route === '/login' ? <AuthPage /> : adminRoute ? (
+      {loginRoute ? <AuthPage /> : bookingSuccessRoute ? (
+        <BookingSuccessPage />
+      ) : bookingCancelledRoute ? (
+        <BookingCancelledPage />
+      ) : adminRoute ? (
         <ProtectedRoute role="ADMIN"><AdminRoute /></ProtectedRoute>
       ) : customerRoute ? (
         <ProtectedRoute role="CUSTOMER"><CustomerPage /></ProtectedRoute>
-      ) : <CustomerPage />}
+      ) : landingRoute ? (
+        <CustomerPage />
+      ) : <AuthPage />}
+      {/* Geraint is available to guests and customers everywhere except the admin dashboard. */}
+      {!adminRoute && <GeraintChatbot />}
     </AuthProvider>
   )
 }

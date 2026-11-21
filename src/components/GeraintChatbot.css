@@ -1,0 +1,428 @@
+/* Geraint concierge widget: Luxury Tropical Sanctuary glass, Day and Night modes. */
+.geraint {
+  --g-glass: rgba(255, 255, 255, .7);
+  --g-glass-strong: rgba(255, 255, 255, .86);
+  --g-edge: rgba(255, 255, 255, .75);
+  --g-line: rgba(15, 30, 93, .14);
+  --g-ink: #1b222e;
+  --g-muted: #536076;
+  --g-bot-bubble: rgba(255, 255, 255, .82);
+  --g-user-bubble: linear-gradient(135deg, #059669, #0d206d);
+  --g-user-ink: #fff;
+  --g-chip: rgba(238, 241, 251, .78);
+  --g-chip-ink: #0c1c5d;
+  --g-chip-edge: rgba(17, 41, 138, .28);
+  --g-gold: #d99a2b;
+  --g-shadow: 0 24px 60px rgba(26, 35, 52, .2), 0 2px 8px rgba(26, 35, 52, .08);
+  --g-error: #b91c1c;
+
+  position: fixed;
+  z-index: 9;
+  right: 20px;
+  bottom: 20px;
+  font-family: inherit;
+  color: var(--g-ink);
+}
+
+/* The closed launcher sits under booking modals (10) and the site header (20);
+   an open chat the guest asked for sits above both. */
+.geraint.is-open {
+  z-index: 30;
+}
+
+:root[data-theme='dark'] .geraint {
+  --g-glass: rgba(5, 11, 37, .66);
+  --g-glass-strong: rgba(6, 14, 45, .86);
+  --g-edge: rgba(255, 255, 255, .14);
+  --g-line: rgba(255, 255, 255, .1);
+  --g-ink: #f5f5f4;
+  --g-muted: #b0bacc;
+  --g-bot-bubble: rgba(255, 255, 255, .08);
+  --g-user-bubble: linear-gradient(135deg, #d6a64d, #b7832f);
+  --g-user-ink: #1c1405;
+  --g-chip: rgba(255, 255, 255, .07);
+  --g-chip-ink: #f0c36d;
+  --g-chip-edge: rgba(240, 195, 109, .32);
+  --g-gold: #f0c36d;
+  --g-shadow: 0 24px 60px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .25);
+  --g-error: #fca5a5;
+}
+
+.geraint-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Launcher pill */
+.geraint-launcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 6px;
+  border: 1px solid var(--g-edge);
+  border-radius: 999px;
+  color: var(--g-ink);
+  background: var(--g-glass);
+  box-shadow: var(--g-shadow);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  font-weight: 700;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+  animation: geraint-pop .35s ease-out;
+}
+
+.geraint-launcher:hover {
+  transform: translateY(-2px);
+}
+
+.geraint-launcher:focus-visible,
+.geraint-close:focus-visible,
+.geraint-chip:focus-visible,
+.geraint-send:focus-visible,
+.geraint-composer textarea:focus-visible {
+  outline: 2px solid var(--g-gold);
+  outline-offset: 2px;
+}
+
+.geraint-launcher-avatar,
+.geraint-header-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.geraint-avatar {
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .7);
+}
+
+:root[data-theme='dark'] .geraint-avatar {
+  box-shadow: 0 0 0 2px rgba(240, 195, 109, .45);
+}
+
+.geraint-online-dot {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, .5);
+  animation: geraint-pulse 2.4s ease-out infinite;
+}
+
+/* Drawer */
+.geraint-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(390px, calc(100vw - 32px));
+  height: min(620px, calc(100dvh - 40px));
+  overflow: hidden;
+  border: 1px solid var(--g-edge);
+  border-radius: 24px;
+  background: var(--g-glass);
+  box-shadow: var(--g-shadow);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  animation: geraint-rise .28s cubic-bezier(.2, .8, .3, 1);
+  transform-origin: bottom right;
+}
+
+.geraint-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 14px 16px;
+  border-bottom: 1px solid var(--g-line);
+  background:
+    linear-gradient(120deg, rgba(17, 41, 138, .14), rgba(245, 158, 11, .1)),
+    var(--g-glass-strong);
+}
+
+.geraint-header-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.geraint-header-text b {
+  font-size: .98rem;
+  letter-spacing: -.01em;
+}
+
+.geraint-header-text small {
+  color: var(--g-muted);
+  font-size: .78rem;
+}
+
+.geraint-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--g-line);
+  border-radius: 50%;
+  color: var(--g-ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+.geraint-close:hover {
+  background: var(--g-chip);
+}
+
+.geraint-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 14px;
+}
+
+.geraint-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 100%;
+  animation: geraint-fade .22s ease-out;
+}
+
+.geraint-row.is-user {
+  justify-content: flex-end;
+}
+
+.geraint-row-avatar {
+  flex: none;
+}
+
+.geraint-bubble {
+  max-width: 82%;
+  padding: 10px 13px;
+  border: 1px solid var(--g-line);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--g-bot-bubble);
+  font-size: .9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.is-user .geraint-bubble {
+  border-color: transparent;
+  border-radius: 18px 18px 6px 18px;
+  color: var(--g-user-ink);
+  background: var(--g-user-bubble);
+  white-space: pre-wrap;
+}
+
+.geraint-bubble p,
+.geraint-bubble ul,
+.geraint-bubble ol {
+  margin: 0;
+}
+
+.geraint .geraint-bubble > :is(p, ul, ol) + :is(p, ul, ol) {
+  margin-top: 8px;
+}
+
+.geraint-bubble ul,
+.geraint-bubble ol {
+  display: grid;
+  gap: 4px;
+  padding-left: 1.15em;
+}
+
+.geraint-bubble ul li::marker {
+  color: var(--g-gold);
+}
+
+.geraint-bubble strong {
+  font-weight: 700;
+}
+
+.geraint-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 38px;
+}
+
+.geraint-chip {
+  padding: 7px 12px;
+  border: 1px solid var(--g-chip-edge);
+  border-radius: 999px;
+  color: var(--g-chip-ink);
+  background: var(--g-chip);
+  font-size: .8rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease;
+}
+
+.geraint-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--g-glass-strong);
+}
+
+.geraint-chip:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.geraint-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--g-muted);
+  font-size: .82rem;
+}
+
+.geraint-paws {
+  display: inline-flex;
+  gap: 3px;
+  color: var(--g-gold);
+}
+
+.geraint-paws svg {
+  animation: geraint-step 1.2s ease-in-out infinite;
+}
+
+.geraint-paws svg:nth-child(2) {
+  animation-delay: .2s;
+}
+
+.geraint-paws svg:nth-child(3) {
+  animation-delay: .4s;
+}
+
+.geraint-error {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  color: var(--g-error);
+  font-size: .82rem;
+}
+
+.geraint-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  border-top: 1px solid var(--g-line);
+  background: var(--g-glass-strong);
+}
+
+.geraint-composer textarea {
+  flex: 1;
+  min-height: 42px;
+  max-height: 110px;
+  padding: 10px 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 20px;
+  color: var(--g-ink);
+  background: var(--g-bot-bubble);
+  font: inherit;
+  font-size: .9rem;
+  line-height: 1.4;
+  resize: none;
+  field-sizing: content;
+}
+
+.geraint-composer textarea::placeholder {
+  color: var(--g-muted);
+}
+
+.geraint-send {
+  display: grid;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: var(--g-user-ink);
+  background: var(--g-user-bubble);
+  cursor: pointer;
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.geraint-send:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.geraint-send:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.geraint-disclaimer {
+  margin: 0;
+  padding: 0 14px 10px;
+  color: var(--g-muted);
+  background: var(--g-glass-strong);
+  font-size: .7rem;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .geraint {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .geraint.is-open {
+    left: 16px;
+  }
+
+  .geraint-panel {
+    width: 100%;
+    height: calc(100dvh - 32px);
+  }
+}
+
+@keyframes geraint-pop {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes geraint-rise {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes geraint-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes geraint-step {
+  0%, 100% { opacity: .35; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+@keyframes geraint-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .5); }
+  70%, 100% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geraint *,
+  .geraint-launcher,
+  .geraint-panel {
+    animation: none !important;
+    transition: none !important;
+  }
+}

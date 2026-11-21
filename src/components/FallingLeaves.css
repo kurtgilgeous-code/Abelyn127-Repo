@@ -1,0 +1,79 @@
+/* Falling leaves: a fixed layer above the section backgrounds but under every positioned
+   element (cards, header, hero), so they drift through open space and behind the glass cards. */
+.falling-leaves {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.falling-leaf {
+  position: absolute;
+  top: 0;
+  left: var(--leaf-left);
+  width: var(--leaf-size);
+  height: var(--leaf-size);
+  will-change: transform;
+  animation: leaf-fall var(--leaf-fall) linear var(--leaf-delay) infinite;
+}
+
+.falling-leaf svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: currentColor;
+  animation: leaf-flutter var(--leaf-sway) ease-in-out var(--leaf-delay) infinite alternate;
+}
+
+.falling-leaf .leaf-vein {
+  fill: none;
+  stroke: rgba(255, 255, 255, .35);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+/* Far leaves: smaller, softer and slightly blurred for depth */
+.falling-leaf.is-far {
+  opacity: .6;
+  filter: blur(.6px);
+}
+
+/* Day: fresh greens with a touch of sun-gold */
+.leaf-tone-0 { color: rgba(92, 138, 74, .55); }
+.leaf-tone-1 { color: rgba(132, 160, 72, .5); }
+.leaf-tone-2 { color: rgba(196, 150, 62, .45); }
+.leaf-tone-3 { color: rgba(64, 112, 82, .5); }
+
+/* Night: moonlit, quieter leaves */
+:root[data-theme='dark'] .leaf-tone-0 { color: rgba(96, 160, 120, .45); }
+:root[data-theme='dark'] .leaf-tone-1 { color: rgba(140, 170, 96, .4); }
+:root[data-theme='dark'] .leaf-tone-2 { color: rgba(229, 193, 88, .34); }
+:root[data-theme='dark'] .leaf-tone-3 { color: rgba(80, 140, 150, .42); }
+:root[data-theme='dark'] .falling-leaf .leaf-vein { stroke: rgba(255, 255, 255, .2); }
+
+@keyframes leaf-fall {
+  from { transform: translate3d(0, -8vh, 0) rotate(0deg); }
+  to { transform: translate3d(var(--leaf-drift), 108vh, 0) rotate(var(--leaf-spin)); }
+}
+
+/* Side-to-side sway with a slight 3D tumble */
+@keyframes leaf-flutter {
+  from { transform: translateX(-18px) rotate(-25deg) rotateX(0deg); }
+  to { transform: translateX(18px) rotate(25deg) rotateX(55deg); }
+}
+
+/* Fewer leaves on phones: 8 near + 5 far */
+@media (max-width: 720px) {
+  .falling-leaf:nth-child(n + 9):not(.is-far),
+  .falling-leaf.is-far:nth-child(n + 22) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .falling-leaves { display: none; }
+}
+
+@media print {
+  .falling-leaves { display: none; }
+}

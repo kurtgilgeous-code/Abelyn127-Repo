@@ -1,0 +1,392 @@
+/*
+ * Tampisawan brand layer — matches the official logo (royal cobalt roof, champagne-gold
+ * border, coral-terracotta script). Loaded after every other stylesheet, so it only restyles:
+ * no layout, state, or behavior changes. Tokens live in index.css (light :root and
+ * :root[data-theme='dark']).
+ */
+
+/* ---------- Logo tones ---------- */
+.resort-logo .logo-stop-cobalt-1 { stop-color: var(--logo-cobalt-1); }
+.resort-logo .logo-stop-cobalt-2 { stop-color: var(--logo-cobalt-2); }
+.resort-logo .logo-stop-gold-1 { stop-color: var(--logo-gold-1); }
+.resort-logo .logo-stop-gold-2 { stop-color: var(--logo-gold-2); }
+.resort-logo .logo-stop-coral-1 { stop-color: var(--logo-coral-1); }
+.resort-logo .logo-stop-coral-2 { stop-color: var(--logo-coral-2); }
+.resort-logo .logo-gold-inner { stroke: var(--logo-gold-inner); }
+.resort-logo .logo-roof-edge { stroke: var(--logo-roof-edge); }
+
+.resort-logo .logo-script {
+  font-family: 'Great Vibes', 'Allura', cursive;
+  font-size: 330px;
+}
+
+.resort-logo .logo-subtitle {
+  fill: var(--logo-subtitle);
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  font-size: 66px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* Always-dark backgrounds (the hero photo) */
+.resort-logo-tone-onDark {
+  --logo-cobalt-1: #3b6ef5;
+  --logo-cobalt-2: #1d4ed8;
+  --logo-gold-1: #d4af37;
+  --logo-gold-2: #f3d06b;
+  --logo-gold-inner: #fff1c2;
+  --logo-roof-edge: rgba(255, 255, 255, .12);
+  --logo-coral-1: #f6806e;
+  --logo-coral-2: #f06a57;
+  --logo-subtitle: #f0a77c;
+}
+
+/* White paper (receipts, printed reports), whatever the screen theme is */
+.resort-logo-tone-print {
+  --logo-cobalt-1: #2449e0;
+  --logo-cobalt-2: #1434cb;
+  --logo-gold-1: #a77a22;
+  --logo-gold-2: #d9b44a;
+  --logo-gold-inner: #f5e2a8;
+  --logo-roof-edge: rgba(15, 23, 42, .2);
+  --logo-coral-1: #e05a47;
+  --logo-coral-2: #cf4a37;
+  --logo-subtitle: #b8673f;
+}
+
+/* Logo sizes for the new artwork (wider than the old arch mark) */
+.resort-logo-navbar { width: 168px; filter: none; }
+.resort-logo-hero { width: min(420px, 80vw); filter: drop-shadow(0 10px 26px rgba(0, 0, 0, .35)); }
+.resort-logo-login { width: min(270px, 76vw); filter: none; }
+.resort-logo-footer { display: block; width: 132px; height: auto; filter: none; }
+.receipt-logo { width: 190px; height: auto; }
+.resort-logo-admin { width: 100%; max-width: 188px; }
+
+@media (max-width: 1100px) { .resort-logo-navbar { width: 142px; } }
+@media (max-width: 720px) { .resort-logo-navbar { width: 118px; } }
+
+/* ---------- Typography ---------- */
+:root .section-heading h2,
+:root .amenities-copy h2,
+:root .rates-heading h2,
+:root .customer-followup-copy h2,
+:root .booking-card-head h3,
+:root .stay-title-row h3,
+:root .customer-bookings-heading h3,
+:root .lookup-form h3,
+:root .review-modal h2,
+:root .admin-page-heading h1,
+:root .earnings-heading h1 {
+  color: var(--heading);
+}
+
+:root .section-heading p,
+:root .amenities-copy p,
+:root .rates-heading p,
+:root .customer-followup-copy p {
+  color: var(--body-text);
+}
+
+:root .section-heading h2 em,
+:root .amenities-copy h2 em,
+:root .rates-heading h2 em,
+:root .customer-followup-copy h2 em,
+:root .review-modal h2 em {
+  color: var(--cta);
+}
+
+/* ---------- Primary CTAs: coral-terracotta ---------- */
+:root .header-cta,
+:root .review-button,
+:root .auth-submit-button,
+:root .inquiry-submit-form .priority-button {
+  border-color: transparent;
+  color: var(--cta-ink);
+  background: linear-gradient(135deg, var(--cta), var(--cta-hover));
+  box-shadow: 0 10px 24px rgba(217, 78, 59, .24);
+}
+
+:root .header-cta:hover,
+:root .review-button:hover:not(:disabled),
+:root .auth-submit-button:hover:not(:disabled),
+:root .inquiry-submit-form .priority-button:hover:not(:disabled) {
+  color: var(--cta-ink);
+  background: linear-gradient(135deg, var(--cta-hover), var(--cta-hover));
+}
+
+:root .review-button:disabled,
+:root .auth-submit-button:disabled {
+  color: #fff;
+  background: #a3acbb;
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .header-cta,
+:root[data-theme='dark'] .review-button,
+:root[data-theme='dark'] .auth-submit-button,
+:root[data-theme='dark'] .inquiry-submit-form .priority-button {
+  color: var(--cta-ink);
+  background: linear-gradient(135deg, #f06a57, #e0553f);
+  box-shadow: 0 10px 28px rgba(240, 106, 87, .28);
+}
+
+:root[data-theme='dark'] .header-cta:hover,
+:root[data-theme='dark'] .review-button:hover:not(:disabled),
+:root[data-theme='dark'] .auth-submit-button:hover:not(:disabled),
+:root[data-theme='dark'] .inquiry-submit-form .priority-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f5806f, #f06a57);
+}
+
+:root[data-theme='dark'] .review-button:disabled,
+:root[data-theme='dark'] .auth-submit-button:disabled {
+  color: #cbd5e1;
+  background: #334155;
+}
+
+/* Price totals glow coral */
+:root .estimate-total b {
+  color: var(--cta);
+}
+
+/* Priority #1 GCash tag: champagne gold */
+:root .priority-badge {
+  border-color: rgba(180, 131, 39, .45);
+  color: #8a6416;
+  background: rgba(212, 175, 55, .16);
+}
+
+:root[data-theme='dark'] .priority-badge {
+  border-color: rgba(229, 193, 88, .5);
+  color: #e5c158;
+  background: rgba(229, 193, 88, .12);
+}
+
+/* ---------- Badges: gold = exclusive whole resort, cobalt = shared pool ---------- */
+:root .whole-resort-badge,
+:root .gold-glass-badge {
+  border-color: rgba(243, 208, 107, .85);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(212, 175, 55, .92), rgba(180, 131, 39, .9));
+  box-shadow: 0 4px 16px rgba(180, 131, 39, .35), inset 0 1px 1px rgba(255, 255, 255, .55);
+}
+
+:root .shared-pool-badge {
+  border-color: rgba(191, 208, 255, .6);
+  color: #fff;
+  background: rgba(20, 52, 203, .82);
+  box-shadow: 0 4px 12px rgba(20, 52, 203, .28);
+}
+
+:root[data-theme='dark'] .shared-pool-badge {
+  background: rgba(29, 78, 216, .85);
+}
+
+:root .gold-glass-callout {
+  border-color: rgba(212, 175, 55, .45);
+  background: linear-gradient(135deg, rgba(212, 175, 55, .14), rgba(255, 255, 255, .7));
+}
+
+:root .gold-glass-callout svg { color: var(--gold); }
+
+:root[data-theme='dark'] .gold-glass-callout {
+  border-color: rgba(229, 193, 88, .35);
+  background: linear-gradient(135deg, rgba(229, 193, 88, .14), rgba(15, 23, 42, .6));
+}
+
+:root .shared-pool-callout {
+  border-color: rgba(20, 52, 203, .2);
+  background: rgba(20, 52, 203, .06);
+}
+
+:root .shared-pool-callout svg { color: var(--cobalt); }
+
+:root[data-theme='dark'] .shared-pool-callout {
+  border-color: rgba(59, 130, 246, .3);
+  background: rgba(59, 130, 246, .1);
+}
+
+/* ---------- Glassmorphic cards ---------- */
+:root .booking-card,
+:root .stay-card,
+:root .followup-card,
+:root .amenity-panel,
+:root .rate-detail-card,
+:root .users-panel,
+:root .users-stats > div {
+  border-color: rgba(15, 23, 42, .1);
+  background-color: rgba(255, 255, 255, .8);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root[data-theme='dark'] .booking-card,
+:root[data-theme='dark'] .stay-card,
+:root[data-theme='dark'] .followup-card,
+:root[data-theme='dark'] .amenity-panel,
+:root[data-theme='dark'] .rate-detail-card,
+:root[data-theme='dark'] .users-panel,
+:root[data-theme='dark'] .users-stats > div,
+:root[data-theme='dark'] .admin-sidebar,
+:root[data-theme='dark'] .admin-topbar,
+:root[data-theme='dark'] .admin-queue-tabs,
+:root[data-theme='dark'] .admin-booking-card,
+:root[data-theme='dark'] .payment-history,
+:root[data-theme='dark'] .booking-list {
+  border-color: rgba(255, 255, 255, .1);
+  background-color: rgba(15, 23, 42, .7);
+}
+
+/* Selected accommodation / tour type: cobalt */
+:root .stay-card.is-selected { border-color: var(--cobalt); box-shadow: 0 0 0 2px var(--cobalt-soft), var(--glass-shadow); }
+:root .select-stay.selected { border-color: var(--cobalt); color: #fff; background: var(--cobalt); }
+
+/* Sticky navbar glass */
+:root .site-header {
+  border-bottom-color: rgba(15, 23, 42, .08);
+  background: rgba(250, 248, 245, .8);
+}
+
+:root[data-theme='dark'] .site-header {
+  border-bottom-color: rgba(255, 255, 255, .08);
+  background: rgba(8, 12, 20, .78);
+}
+
+:root .main-nav a:hover,
+:root .text-link:hover,
+:root .footer-top:hover {
+  color: var(--cta);
+}
+
+/* Admin sidebar logo block */
+.admin-brand.admin-brand-logo {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 6px;
+}
+
+.admin-brand.admin-brand-logo {
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px 20px;
+}
+
+.admin-brand.admin-brand-logo small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2.4px;
+}
+
+/* Admin: active nav item and count badges pick up the logo palette */
+:root .admin-nav a.active,
+:root .admin-nav a:hover {
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+:root[data-theme='dark'] .admin-nav a.active,
+:root[data-theme='dark'] .admin-nav a:hover {
+  color: var(--gold);
+  background: rgba(255, 255, 255, .06);
+}
+
+:root .walkin-new-booking-button,
+:root .walkin-submit-button {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, var(--cta), var(--cta-hover));
+}
+
+:root .walkin-new-booking-button:hover,
+:root .walkin-submit-button:hover:not(:disabled) {
+  background: var(--cta-hover);
+}
+
+/* ---------- Page canvases ---------- */
+:root[data-theme='dark'] body {
+  background:
+    radial-gradient(ellipse at 9% 2%, rgba(59, 130, 246, .12), transparent 34%),
+    radial-gradient(ellipse at 92% 18%, rgba(229, 193, 88, .06), transparent 30%),
+    radial-gradient(ellipse at 70% 98%, rgba(240, 106, 87, .06), transparent 32%),
+    linear-gradient(160deg, #080c14, #0b1222 55%, #0e1525);
+  background-attachment: fixed;
+}
+
+:root[data-theme='dark'] .booking-section {
+  background:
+    radial-gradient(ellipse at 12% 18%, rgba(59, 130, 246, .13), transparent 36%),
+    radial-gradient(ellipse at 88% 84%, rgba(229, 193, 88, .07), transparent 34%),
+    linear-gradient(140deg, #080c14, #0c1424 55%, #0e1525);
+}
+
+/* ---------- "One step closer to your getaway." checkout modal ---------- */
+:root .review-modal {
+  border-color: rgba(15, 23, 42, .1);
+  background: #fffdfa;
+}
+
+:root[data-theme='dark'] .review-modal {
+  border-color: rgba(255, 255, 255, .1);
+  background: #0e1525;
+}
+
+:root .review-total b {
+  color: var(--cta);
+}
+
+:root[data-theme='dark'] .estimate-total b,
+:root[data-theme='dark'] .review-total b {
+  color: var(--cta);
+}
+
+/* ---------- Header nav: active section highlight that slides with the page ---------- */
+.main-nav {
+  position: relative;
+}
+
+.main-nav a {
+  position: relative;
+  padding: 6px 0;
+}
+
+.main-nav a.is-active {
+  color: var(--heading);
+}
+
+:root[data-theme='dark'] .main-nav a.is-active {
+  color: #f8fafc;
+}
+
+.main-nav-indicator {
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cta), var(--gold-bright));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform .45s cubic-bezier(.22, .8, .24, 1),
+    width .45s cubic-bezier(.22, .8, .24, 1),
+    opacity .25s ease;
+}
+
+/* Animate on Scroll (AOS): gentler travel than the library default, and no lingering
+   transform once an element has arrived (a leftover transform would trap fixed/sticky
+   children and blur text). */
+[data-aos='fade-up'] { transform: translate3d(0, var(--aos-travel, 28px), 0); }
+[data-aos='fade-right'] { transform: translate3d(calc(var(--aos-travel, 28px) * -1.4), 0, 0); }
+[data-aos='fade-left'] { transform: translate3d(calc(var(--aos-travel, 28px) * 1.4), 0, 0); }
+[data-aos='zoom-in'] { transform: scale(.94); }
+[data-aos][data-aos][data-aos].aos-animate { transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-aos] { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
+@media print {
+  [data-aos] { opacity: 1 !important; transform: none !important; }
+}

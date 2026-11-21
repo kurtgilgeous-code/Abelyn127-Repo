@@ -1,0 +1,718 @@
+/* =========================================================================
+   Polish: every action looks clickable, plus the sunlit booking section.
+   Shared rules apply to both themes; Day-only colors use :root:not([data-theme='dark']).
+   ========================================================================= */
+
+/* ---------- Secondary actions as real pill buttons ----------
+   "View rate details", "See all rates", "Start planning" */
+:root :is(.text-link, .intro-strip > a) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1.5px solid rgba(20, 52, 203, .35);
+  border-radius: 999px;
+  color: #1434cb;
+  background: rgba(255, 255, 255, .8);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, .06);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, translate .2s ease;
+}
+
+:root :is(.text-link, .intro-strip > a):hover {
+  border-color: #1434cb;
+  color: #fff;
+  background: #1434cb;
+  box-shadow: 0 10px 22px rgba(20, 52, 203, .25);
+  translate: 0 -2px;
+}
+
+:root :is(.text-link, .intro-strip > a) svg { transition: transform .2s ease; }
+:root :is(.text-link, .intro-strip > a):hover svg { transform: translate(2px, -2px); }
+
+:root[data-theme='dark'] :is(.text-link, .intro-strip > a) {
+  border-color: rgba(147, 197, 253, .4);
+  color: #bfdbfe;
+  background: rgba(37, 99, 235, .12);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] :is(.text-link, .intro-strip > a):hover {
+  border-color: #3b82f6;
+  color: #fff;
+  background: #2563eb;
+}
+
+:root .section-heading > .text-link { align-self: flex-end; }
+
+/* ---------- Slideshow "Select space" / "Plan your visit": coral pill ---------- */
+:root .showcase-select {
+  min-height: 36px;
+  padding: 0 14px 0 16px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #e0604b, #c4402e);
+  box-shadow: 0 8px 18px rgba(217, 78, 59, .3);
+  font-size: 12.5px;
+  transition: box-shadow .2s ease, translate .2s ease, filter .2s ease;
+}
+
+:root .showcase-select:hover { filter: brightness(1.06); translate: 0 -1px; box-shadow: 0 12px 24px rgba(217, 78, 59, .38); }
+:root[data-theme='dark'] .showcase-select { color: #fff; background: linear-gradient(135deg, #f06a57, #e0553f); }
+
+/* ---------- "Add to booking" / "Selected" on the stay cards ---------- */
+:root .stay-card .select-stay {
+  min-height: 44px;
+  border-width: 1.5px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, translate .2s ease;
+}
+
+:root .stay-card .select-stay:hover:not(:disabled) {
+  translate: 0 -1px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, .12);
+}
+
+:root .stay-card .select-stay svg { transition: transform .2s ease; }
+:root .stay-card .select-stay:not(.selected):hover svg { transform: rotate(90deg); }
+
+/* Day: tinted by tier so it reads as a button, coral on hover */
+:root:not([data-theme='dark']) .stay-card.is-exclusive .select-stay:not(.selected) {
+  border-color: #dcc285;
+  color: #8a5f12;
+  background: linear-gradient(180deg, #fffdf6, #fbf1d6);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-shared .select-stay:not(.selected) {
+  border-color: rgba(4, 120, 87, .3);
+  color: #047857;
+  background: linear-gradient(180deg, #fafefb, #e6f7ec);
+}
+
+:root:not([data-theme='dark']) .stay-card .select-stay:not(.selected):hover {
+  border-color: #d94e3b;
+  color: #fff;
+  background: #d94e3b;
+  box-shadow: 0 10px 22px rgba(217, 78, 59, .28);
+}
+
+/* Night: a visible outline instead of a flat dark box */
+:root[data-theme='dark'] .stay-card .select-stay:not(.selected) {
+  border-color: rgba(147, 197, 253, .35);
+  color: #dbeafe;
+  background: rgba(37, 99, 235, .12);
+}
+
+:root[data-theme='dark'] .stay-card .select-stay:not(.selected):hover {
+  border-color: #f06a57;
+  color: #fff;
+  background: #e0553f;
+}
+
+/* ---------- "View photos": a clear little button ---------- */
+:root .stay-photos-button {
+  cursor: pointer;
+  transition: background .2s ease, box-shadow .2s ease, translate .2s ease;
+}
+
+:root .stay-photos-button:hover { translate: 0 -1px; box-shadow: 0 6px 14px rgba(15, 23, 42, .18); }
+
+/* ---------- Guest +/- steppers: bigger, outlined, filled on hover ---------- */
+:root .guest-stepper { gap: 12px; }
+
+:root .guest-stepper button {
+  width: 34px;
+  height: 34px;
+  border: 1.5px solid rgba(20, 52, 203, .4);
+  color: #1434cb;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .06);
+  transition: color .15s ease, background .15s ease, border-color .15s ease, scale .15s ease;
+}
+
+:root .guest-stepper button:hover:not(:disabled) { border-color: #1434cb; color: #fff; background: #1434cb; }
+:root .guest-stepper button:active:not(:disabled) { scale: .92; }
+
+:root .guest-stepper button:disabled {
+  border-color: #e2e8f0;
+  color: #cbd5e1;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+:root .guest-stepper strong { min-width: 18px; font-size: 15px; font-variant-numeric: tabular-nums; }
+
+:root[data-theme='dark'] .guest-stepper button {
+  border-color: rgba(147, 197, 253, .45);
+  color: #bfdbfe;
+  background: rgba(37, 99, 235, .14);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .guest-stepper button:hover:not(:disabled) { border-color: #3b82f6; color: #fff; background: #2563eb; }
+
+:root[data-theme='dark'] .guest-stepper button:disabled {
+  border-color: rgba(255, 255, 255, .08);
+  color: rgba(255, 255, 255, .22);
+  background: transparent;
+}
+
+/* ---------- Tour type cards: obvious hover ---------- */
+:root .tour-option { cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, translate .2s ease; }
+:root .tour-option:hover:not(.is-checked) { translate: 0 -2px; box-shadow: 0 10px 22px rgba(15, 23, 42, .08); }
+
+/* ---------- Booking intro follows you down the long form (desktop) ---------- */
+:root .booking-section { overflow: clip; }
+
+@media (min-width: 1024px) {
+  :root .booking-inner > .booking-intro {
+    position: sticky;
+    top: 120px;
+  }
+}
+
+/* ---------- Day: sunlit booking section ---------- */
+:root:not([data-theme='dark']) .booking-section {
+  border-top: 1px solid #e6dec8;
+  border-bottom: 1px solid #e6dec8;
+  background:
+    radial-gradient(ellipse 55% 50% at 0% 0%, rgba(253, 224, 71, .16), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 100% 100%, rgba(195, 221, 253, .4), transparent 70%),
+    linear-gradient(135deg, #fffdf9 0%, #f7f1e5 55%, #efe6d5 100%);
+}
+
+:root:not([data-theme='dark']) .booking-section::before,
+:root:not([data-theme='dark']) .booking-section::after { border-color: rgba(180, 131, 39, .14); }
+
+:root:not([data-theme='dark']) .booking-intro .eyebrow { color: #9a6b16; }
+:root:not([data-theme='dark']) .booking-intro h2 { color: #0b1221; }
+:root:not([data-theme='dark']) .booking-intro h2 em { color: #b48327; }
+:root:not([data-theme='dark']) .booking-intro > p { color: #475569; }
+:root:not([data-theme='dark']) .booking-note { border-color: #e6dec8; color: #b48327; }
+
+:root:not([data-theme='dark']) .booking-card {
+  border-color: #e6dec8;
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 24px 60px rgba(120, 92, 40, .12);
+}
+
+/* Estimated total: champagne receipt */
+:root:not([data-theme='dark']) .estimate-box {
+  border-color: #eadfc4;
+  background: linear-gradient(180deg, #fffdf6 0%, #fbf4e2 100%);
+}
+
+/* Section headings and copy on the open background */
+:root:not([data-theme='dark']) :is(.section-heading, .amenities-copy, .rates-heading, .customer-followup-copy) h2 { color: #0b1221; }
+:root:not([data-theme='dark']) :is(.section-heading, .amenities-copy, .rates-heading, .customer-followup-copy) h2 em { color: #d94e3b; }
+
+:root:not([data-theme='dark']) .followup-card {
+  border-color: #e6dec8;
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 18px 44px rgba(120, 92, 40, .1);
+}
+
+/* Intro strip: icons in soft champagne discs */
+:root:not([data-theme='dark']) .strip-icon {
+  color: #9a6b16;
+  background: linear-gradient(180deg, #fffdf6, #fbf1d6);
+  box-shadow: inset 0 0 0 1px #efdcaa;
+}
+
+@media (max-width: 720px) {
+  :root :is(.text-link, .intro-strip > a) { min-height: 40px; padding: 0 16px; }
+}
+
+/* ---------- Day: receipt & voucher actions in red ----------
+   "View receipt", "View voucher", "View official receipt", admin "View Receipt",
+   and "Print / Save as PDF". Night mode keeps its own styles. */
+:root:not([data-theme='dark']) :is(.customer-booking-view-button, .admin-receipt-button, .receipt-print-button) {
+  border: 1.5px solid #c42f25 !important;
+  border-radius: 999px;
+  color: #fff !important;
+  background: linear-gradient(135deg, #e5483b, #c42f25) !important;
+  box-shadow: 0 8px 18px rgba(196, 47, 37, .28);
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow .2s ease, translate .2s ease, filter .2s ease;
+}
+
+:root:not([data-theme='dark']) .customer-booking-view-button { padding: 0 14px; }
+:root:not([data-theme='dark']) .admin-receipt-button { padding: 0 14px; }
+
+:root:not([data-theme='dark']) :is(.customer-booking-view-button, .admin-receipt-button, .receipt-print-button):hover {
+  filter: none;
+  background: linear-gradient(135deg, #d63a2e, #a8241b) !important;
+  box-shadow: 0 12px 24px rgba(196, 47, 37, .36);
+  translate: 0 -1px;
+}
+
+:root:not([data-theme='dark']) :is(.customer-booking-view-button, .admin-receipt-button, .receipt-print-button):focus-visible {
+  outline: 3px solid rgba(229, 72, 59, .35);
+  outline-offset: 2px;
+}
+
+:root:not([data-theme='dark']) :is(.customer-booking-view-button, .admin-receipt-button) svg { transition: transform .2s ease; }
+:root:not([data-theme='dark']) .customer-booking-view-button:hover svg { transform: translateX(2px); }
+
+/* The printed receipt itself stays plain: no colored button on paper. */
+@media print {
+  :root .receipt-print-button { display: none; }
+}
+
+/* Guest list: theme-aware dividers (the old fixed light-gray lines glared in Night mode) */
+:root .guest-list { border-color: var(--border); border-radius: 12px; }
+:root .guest-row + .guest-row { border-top-color: var(--border); }
+
+/* =========================================================================
+   Day: booking calculator ("Plan your poolside escape") in the
+   Sunlit Mango & Poolside Azure palette. Every rule is Day-only;
+   Night mode keeps its existing styles untouched.
+   ========================================================================= */
+:root:not([data-theme='dark']) .booking-card {
+  border: 1px solid #e6dec8;
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, .06);
+}
+
+/* ---------- Tour type tabs ---------- */
+:root:not([data-theme='dark']) .tour-option {
+  border: 1px solid #e6dec8;
+  border-radius: 10px;
+  color: #475569;
+  background: #f9f6ee;
+}
+
+:root:not([data-theme='dark']) .tour-option:hover:not(.is-checked) { border-color: #dccfae; background: #f3ece0; }
+:root:not([data-theme='dark']) .tour-option b { color: #1e293b; }
+:root:not([data-theme='dark']) .tour-option svg { color: #8a7a5c; }
+
+/* Day / Night tours: frosted poolside azure */
+:root:not([data-theme='dark']) .tour-option.is-checked {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px rgba(20, 52, 203, .18), 0 8px 18px rgba(29, 78, 216, .1);
+}
+
+:root:not([data-theme='dark']) .tour-option.is-checked :is(b, svg, small) { color: #1d4ed8; }
+:root:not([data-theme='dark']) .tour-option.is-checked b { font-weight: 700; }
+
+/* Overnight: warm champagne gold */
+:root:not([data-theme='dark']) .tour-option.is-checked:has(input[value='OVERNIGHT']) {
+  border-color: #e5c158;
+  color: #9a6b16;
+  background: #fef9ec;
+  box-shadow: 0 0 0 1px rgba(180, 131, 39, .2), 0 8px 18px rgba(180, 131, 39, .12);
+}
+
+:root:not([data-theme='dark']) .tour-option.is-checked:has(input[value='OVERNIGHT']) :is(b, svg, small) { color: #9a6b16; }
+:root:not([data-theme='dark']) .tour-option:has(input:focus-visible) { outline-color: #1434cb; }
+
+/* ---------- Accommodation tiles ---------- */
+:root:not([data-theme='dark']) .stay-option {
+  border: 1px solid #e6dec8;
+  border-radius: 10px;
+  color: #1e293b;
+  background: #fcfbf8;
+}
+
+:root:not([data-theme='dark']) .stay-option:hover:not(.is-checked) { border-color: #dccfae; background: #f9f6ee; }
+:root:not([data-theme='dark']) .stay-option-box { border-color: #cdbf9c; background: #fff; }
+:root:not([data-theme='dark']) .stay-option-price { color: #475569; }
+:root:not([data-theme='dark']) .stay-option-name small { color: #64748b; }
+:root:not([data-theme='dark']) .stay-option-name small em { color: #9a6b16; font-style: normal; font-weight: 700; }
+:root:not([data-theme='dark']) .stay-option:has(input:focus-visible) { outline-color: #1434cb; }
+
+/* Selected shared-pool spaces: palm green, matching the shared stay cards */
+:root:not([data-theme='dark']) .stay-option.is-checked {
+  border-color: #86d9a8;
+  background: rgba(240, 252, 244, .95);
+  box-shadow: 0 0 0 1px rgba(5, 150, 105, .22);
+}
+
+:root:not([data-theme='dark']) .stay-option.is-checked .stay-option-box { border-color: #059669; background: #059669; }
+:root:not([data-theme='dark']) .stay-option.is-checked .stay-option-price { color: #047857; }
+
+/* Selected exclusive whole-resort spaces (they carry the "Whole resort" tag): champagne gold */
+:root:not([data-theme='dark']) .stay-option.is-checked:has(.stay-option-pax em) {
+  border-color: #e5c158;
+  background: #fef9ec;
+  box-shadow: 0 0 0 1px rgba(180, 131, 39, .3);
+}
+
+:root:not([data-theme='dark']) .stay-option.is-checked:has(.stay-option-pax em) .stay-option-box { border-color: #855d15; background: #855d15; }
+:root:not([data-theme='dark']) .stay-option.is-checked:has(.stay-option-pax em) .stay-option-price { color: #855d15; }
+
+/* ---------- Access banners (match the tier) ---------- */
+:root:not([data-theme='dark']) .booking-card .shared-pool-callout {
+  border: 1px solid #bfe8cf;
+  border-radius: 10px;
+  color: #0f172a;
+  background: #f1fbf4;
+  box-shadow: none;
+}
+
+:root:not([data-theme='dark']) .booking-card .shared-pool-callout > svg { color: #059669; }
+
+:root:not([data-theme='dark']) .booking-card .gold-glass-callout {
+  border: 1px solid rgba(229, 193, 88, .6);
+  border-radius: 10px;
+  color: #0f172a;
+  background: #fef9ec;
+  box-shadow: none;
+}
+
+:root:not([data-theme='dark']) .booking-card .gold-glass-callout > svg { color: #9a6b16; }
+:root:not([data-theme='dark']) .booking-card :is(.shared-pool-callout, .gold-glass-callout) b { color: #0f172a; }
+:root:not([data-theme='dark']) .booking-card :is(.shared-pool-callout, .gold-glass-callout) small { color: #475569; }
+
+/* ---------- Date inputs ---------- */
+:root:not([data-theme='dark']) .booking-card .date-fields input {
+  border: 1px solid #e6dec8;
+  border-radius: 10px;
+  color: #0f172a;
+  background: #fcfbf8;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+:root:not([data-theme='dark']) .booking-card .date-fields input:focus,
+:root:not([data-theme='dark']) .booking-card .date-fields input:focus-visible {
+  border-color: #1434cb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 52, 203, .2);
+}
+
+/* ---------- Guest stepper: soft sand buttons ---------- */
+:root:not([data-theme='dark']) .booking-card .guest-list { border-color: #e6dec8; background: #fcfbf8; }
+:root:not([data-theme='dark']) .booking-card .guest-row + .guest-row { border-top-color: #efe8d8; }
+
+:root:not([data-theme='dark']) .booking-card .guest-stepper button {
+  border: 1px solid #e6dec8;
+  color: #1434cb;
+  background: #f9f6ee;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+:root:not([data-theme='dark']) .booking-card .guest-stepper button:hover:not(:disabled) {
+  border-color: #dccfae;
+  color: #0f2a9e;
+  background: #f3ece0;
+}
+
+:root:not([data-theme='dark']) .booking-card .guest-stepper button:focus-visible { outline: 2px solid #1434cb; outline-offset: 2px; }
+
+:root:not([data-theme='dark']) .booking-card .guest-stepper button:disabled {
+  border-color: #efe9dc;
+  color: #cbd5e1;
+  background: #fbfaf6;
+}
+
+:root:not([data-theme='dark']) .booking-card .guest-stepper strong { color: #0f172a; }
+
+/* ---------- Policy & guest-limit notices: warm champagne callouts ---------- */
+:root:not([data-theme='dark']) .booking-card :is(.fcfs-note, .pax-limit-note:not(.is-over)) {
+  border: 1px solid rgba(229, 193, 88, .5);
+  border-radius: 10px;
+  color: #475569;
+  background: #fdf8eb;
+}
+
+:root:not([data-theme='dark']) .booking-card :is(.fcfs-note, .pax-limit-note:not(.is-over)) :is(svg, b) { color: #9a6b16; }
+/* Over the limit stays a red alert so it cannot be missed. */
+:root:not([data-theme='dark']) .booking-card .pax-limit-note.is-over { border-radius: 10px; }
+
+/* ---------- YOUR ESTIMATED TOTAL ---------- */
+:root:not([data-theme='dark']) .booking-card .estimate-box {
+  border: 1px solid rgba(229, 193, 88, .5);
+  border-radius: 14px;
+  background: rgba(253, 248, 235, .8);
+}
+
+:root:not([data-theme='dark']) .booking-card .estimate-heading,
+:root:not([data-theme='dark']) .booking-card .estimate-heading span,
+:root:not([data-theme='dark']) .booking-card .estimate-heading svg { color: #9a6b16; }
+:root:not([data-theme='dark']) .booking-card .estimate-heading small { color: #a08a5c; }
+:root:not([data-theme='dark']) .booking-card .estimate-divider { background: rgba(229, 193, 88, .45); }
+:root:not([data-theme='dark']) .booking-card :is(.estimate-line, .deposit-row) span { color: #475569; }
+
+:root:not([data-theme='dark']) .booking-card :is(.estimate-line, .estimate-total, .deposit-row) b {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+:root:not([data-theme='dark']) .booking-card .estimate-total span { color: #0f172a; }
+:root:not([data-theme='dark']) .booking-card .payment-hierarchy > div { border-color: rgba(229, 193, 88, .4); background: rgba(255, 255, 255, .7); }
+
+/* =====================================================================
+   Day mode: palm green replaces royal cobalt as the accent.
+   Kept blue on purpose: the logo, and the "night" items (Night Tour tab,
+   Night rate card). Night mode is untouched.
+   ===================================================================== */
+:root:not([data-theme='dark']) {
+  --green: #047857;
+  --green-dark: #065f46;
+  --green-soft: #e7f6ee;
+  --cobalt: #047857;
+  --cobalt-soft: rgba(4, 120, 87, .09);
+  --accent-blue: #047857;
+  --focus-ring: #047857;
+}
+
+:root:not([data-theme='dark']) ::selection { background: #047857; }
+
+:root:not([data-theme='dark']) body {
+  background:
+    radial-gradient(ellipse 60% 45% at 12% 0%, rgba(242, 194, 110, .16), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 92% 12%, rgba(110, 200, 150, .14), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 70% 100%, rgba(217, 78, 59, .05), transparent 70%),
+    linear-gradient(180deg, #faf7f2 0%, #f2ece1 100%);
+  background-attachment: fixed;
+}
+
+:root:not([data-theme='dark']) body::before {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(242, 194, 110, .14), transparent 26%),
+    radial-gradient(circle at 78% 64%, rgba(110, 200, 150, .1), transparent 28%);
+}
+
+/* Outline links ("See rates", intro strip) */
+:root:not([data-theme='dark']) :is(.text-link, .intro-strip > a) {
+  border-color: rgba(4, 120, 87, .35);
+  color: #047857;
+}
+
+:root:not([data-theme='dark']) :is(.text-link, .intro-strip > a):hover {
+  border-color: #047857;
+  color: #fff;
+  background: #047857;
+  box-shadow: 0 10px 22px rgba(4, 120, 87, .25);
+}
+
+/* Guest +/- steppers */
+:root:not([data-theme='dark']) .guest-stepper button { border-color: rgba(4, 120, 87, .4); color: #047857; }
+:root:not([data-theme='dark']) .booking-card .guest-stepper button { border-color: #e6dec8; color: #047857; }
+:root:not([data-theme='dark']) .guest-stepper button:hover:not(:disabled),
+:root:not([data-theme='dark']) .booking-card .guest-stepper button:hover:not(:disabled) { border-color: #047857; color: #fff; background: #047857; }
+
+/* Day Tour tab: green. Night Tour keeps its soft azure (it means "night"). */
+:root:not([data-theme='dark']) .tour-option.is-checked:has(input[value='DAY_TOUR']) {
+  border-color: #86d9a8;
+  color: #047857;
+  background: #effbf3;
+  box-shadow: 0 0 0 1px rgba(4, 120, 87, .18), 0 8px 18px rgba(4, 120, 87, .1);
+}
+
+:root:not([data-theme='dark']) .tour-option.is-checked:has(input[value='DAY_TOUR']) :is(b, svg) { color: #047857; }
+
+/* Date fields focus */
+:root:not([data-theme='dark']) .booking-card .date-fields input:focus,
+:root:not([data-theme='dark']) .booking-card .date-fields input:focus-visible {
+  border-color: #047857;
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, .2);
+}
+
+:root:not([data-theme='dark']) .stay-option:has(input:focus-visible) { outline-color: #047857; }
+
+/* Hero showcase: shared-tier pill and capacity chip */
+:root:not([data-theme='dark']) .showcase-pill-tier.is-cobalt {
+  background: #047857;
+  box-shadow: 0 6px 18px rgba(4, 120, 87, .35);
+}
+
+:root:not([data-theme='dark']) .showcase-capacity {
+  border-color: rgba(4, 120, 87, .22);
+  color: #047857;
+  background: rgba(4, 120, 87, .07);
+}
+
+/* Header role badge, gallery "outside" pill, generic shared-pool callouts */
+:root:not([data-theme='dark']) .header-role-badge { border-color: rgba(4, 120, 87, .3); }
+:root:not([data-theme='dark']) .gallery-area-pill.is-outside { background: #047857; }
+
+:root:not([data-theme='dark']) .shared-pool-badge {
+  background: #047857;
+  box-shadow: 0 4px 12px rgba(4, 120, 87, .25);
+}
+
+:root:not([data-theme='dark']) .shared-pool-callout {
+  border-color: #bfe8cf;
+  background: #f1fbf4;
+}
+
+:root:not([data-theme='dark']) :is(.shared-pool-note, .shared-pool-callout) > svg { color: #059669; }
+
+/* Stay cards: the Day / Night Tour rate under the overnight rate */
+:root .stay-price .stay-price-tour {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:root[data-theme='dark'] .stay-price .stay-price-tour { color: #94a3b8; }
+
+:root .stay-price .stay-price-tour + .stay-price-tour { margin-top: 1px; }
+:root .stay-price .stay-price-tour b { color: var(--ink); font-weight: 700; }
+:root[data-theme='dark'] .stay-price .stay-price-tour b { color: #e2e8f0; }
+
+/* Booking form: entrance fee under each tour type, and the Day vs Night note */
+:root .tour-option .tour-option-fee {
+  margin-top: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  opacity: .85;
+}
+
+:root .tour-rate-hint { display: block; margin-top: 6px; line-height: 1.45; }
+
+/* Rates section: the Day Tour "every guest pays entrance" note */
+:root .rate-detail-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+:root[data-theme='dark'] .rate-detail-note { color: #94a3b8; }
+
+/* ---------- Estimate: two payment options, each with its own total ---------- */
+:root .estimate-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+:root .estimate-option {
+  display: flex;
+  flex-direction: column;
+  padding: 11px 12px 10px;
+  border: 1px solid rgba(77, 96, 129, .16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .7);
+}
+
+:root .estimate-option header { display: grid; gap: 3px; margin-bottom: 2px; }
+:root .estimate-option header b { color: #0f172a; font-size: 11px; font-weight: 800; }
+:root .estimate-option header small { color: #64748b; font-size: 9px; line-height: 1.45; }
+:root .estimate-option .estimate-total { margin-top: auto; padding-top: 9px; }
+:root .estimate-option .estimate-line + .estimate-total { margin-top: 8px; }
+:root .estimate-option .estimate-total b { font-size: 17px; }
+:root .estimate-option-sum { padding-top: 7px; border-top: 1px dashed rgba(77, 96, 129, .22); }
+:root .estimate-option-sum span,
+:root .estimate-option-sum b { font-weight: 700; }
+:root .estimate-base span,
+:root .estimate-base b { font-weight: 700; }
+
+/* Day: GCash option in calm green, walk-in in warm sand */
+:root:not([data-theme='dark']) .estimate-option.is-online { border-color: #bfe8cf; background: #f4fcf7; }
+:root:not([data-theme='dark']) .estimate-option.is-walkin { border-color: #ead9ae; background: #fffaf0; }
+:root:not([data-theme='dark']) .booking-card .estimate-option.is-online .estimate-total b { color: #047857; }
+:root:not([data-theme='dark']) .booking-card .estimate-option.is-walkin .estimate-total b { color: #9a6b16; }
+
+/* Night */
+:root[data-theme='dark'] .estimate-option {
+  border-color: rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .05);
+}
+
+:root[data-theme='dark'] .estimate-option header b { color: #f8fafc; }
+:root[data-theme='dark'] .estimate-option header small { color: #94a3b8; }
+:root[data-theme='dark'] .estimate-option.is-walkin .estimate-total b { color: #f2c46c; }
+:root[data-theme='dark'] .estimate-option-sum { border-top-color: rgba(255, 255, 255, .14); }
+
+/* ---------- Guests: "In the room" first, then "Extra guests" ---------- */
+:root .guest-group-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+  margin: 4px 0 6px;
+}
+
+:root .guest-group-heading.is-extra { margin-top: 14px; }
+:root .guest-group-heading b { font-size: 11px; font-weight: 800; }
+:root .guest-group-heading span { font-size: 9.5px; font-weight: 600; }
+
+:root .guest-extra-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed rgba(77, 96, 129, .3);
+  border-radius: 12px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+:root .guest-extra-locked svg { flex: 0 0 auto; margin-top: 1px; }
+
+:root:not([data-theme='dark']) .guest-group-heading b { color: #0f172a; }
+:root:not([data-theme='dark']) .guest-group-heading span { color: #64748b; }
+:root:not([data-theme='dark']) .guest-group-heading.is-extra span { color: #9a6b16; }
+:root:not([data-theme='dark']) .guest-extra-locked { border-color: #e6dec8; color: #64748b; background: #fcfbf8; }
+:root:not([data-theme='dark']) .booking-card .guest-list.is-extra { border-color: #ead9ae; background: #fffaf0; }
+
+:root[data-theme='dark'] .guest-group-heading b { color: #f8fafc; }
+:root[data-theme='dark'] .guest-group-heading span { color: #94a3b8; }
+:root[data-theme='dark'] .guest-group-heading.is-extra span { color: #f2c46c; }
+:root[data-theme='dark'] .guest-extra-locked { border-color: rgba(255, 255, 255, .16); color: #94a3b8; background: rgba(255, 255, 255, .04); }
+:root[data-theme='dark'] .guest-list.is-extra { border-color: rgba(242, 196, 108, .3); }
+
+/* ---------- Estimate: the two totals are a choice ---------- */
+:root .estimate-choose { margin: 12px 0 -4px; font-size: 10px; font-weight: 700; }
+:root .estimate-option { position: relative; cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, translate .2s ease; }
+:root .estimate-option:hover { translate: 0 -1px; }
+:root .estimate-option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+:root .estimate-option header { position: relative; padding-left: 24px; }
+:root .estimate-option-radio {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 1.5px solid rgba(77, 96, 129, .45);
+  border-radius: 50%;
+  color: #fff;
+}
+
+:root .estimate-option:not(.is-selected) { opacity: .78; }
+:root .estimate-option.is-selected { opacity: 1; }
+
+/* Day */
+:root:not([data-theme='dark']) .estimate-choose { color: #475569; }
+:root:not([data-theme='dark']) .estimate-option.is-online.is-selected { border-color: #059669; box-shadow: 0 0 0 2px rgba(5, 150, 105, .25), 0 10px 24px rgba(4, 120, 87, .12); }
+:root:not([data-theme='dark']) .estimate-option.is-walkin.is-selected { border-color: #b48327; box-shadow: 0 0 0 2px rgba(180, 131, 39, .25), 0 10px 24px rgba(180, 131, 39, .12); }
+:root:not([data-theme='dark']) .estimate-option.is-online.is-selected .estimate-option-radio { border-color: #059669; background: #059669; }
+:root:not([data-theme='dark']) .estimate-option.is-walkin.is-selected .estimate-option-radio { border-color: #b48327; background: #b48327; }
+
+/* Night */
+:root[data-theme='dark'] .estimate-choose { color: #cbd5e1; }
+:root[data-theme='dark'] .estimate-option-radio { border-color: rgba(255, 255, 255, .35); }
+:root[data-theme='dark'] .estimate-option.is-online.is-selected { border-color: #f06a57; box-shadow: 0 0 0 2px rgba(240, 106, 87, .3); }
+:root[data-theme='dark'] .estimate-option.is-walkin.is-selected { border-color: #f2c46c; box-shadow: 0 0 0 2px rgba(242, 196, 108, .3); }
+:root[data-theme='dark'] .estimate-option.is-online.is-selected .estimate-option-radio { border-color: #f06a57; background: #f06a57; }
+:root[data-theme='dark'] .estimate-option.is-walkin.is-selected .estimate-option-radio { border-color: #f2c46c; background: #f2c46c; color: #1c1405; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root .estimate-option:hover { translate: none; }
+}

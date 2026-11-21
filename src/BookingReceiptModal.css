@@ -1,0 +1,457 @@
+.receipt-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  overflow: auto;
+  place-items: center;
+  padding: 24px;
+  background: rgb(9 13 19 / 72%);
+}
+
+.receipt-modal {
+  position: relative;
+  width: min(100%, 680px);
+  max-height: min(92vh, 1000px);
+  overflow: auto;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 18px;
+  background: #fffdfa;
+  box-shadow: 0 30px 90px rgb(0 0 0 / 28%);
+}
+
+.receipt-close {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  border: 1px solid #dce1e9;
+  border-radius: 50%;
+  color: #3b485e;
+  background: #fff;
+  cursor: pointer;
+}
+
+.official-receipt {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 34px clamp(22px, 5vw, 52px);
+  color: #212a3a;
+  background: #fffdfa;
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.receipt-heading {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding: 10px 24px 24px;
+  border-bottom: 1px solid #e9e9df;
+  text-align: center;
+}
+
+.receipt-logo {
+  width: 170px;
+  height: 94px;
+  margin-bottom: 4px;
+}
+
+.receipt-kicker {
+  color: #67748b;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+}
+
+.receipt-heading h1 {
+  margin: 9px 0 5px;
+  color: #1b2536;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(24px, 4vw, 32px);
+}
+
+.receipt-heading p,
+.receipt-pending-note {
+  margin: 0;
+  color: #636e81;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.receipt-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 22px;
+  margin: 22px 0;
+}
+
+.receipt-reference-grid div {
+  min-width: 0;
+}
+
+.receipt-reference-grid dt,
+.receipt-stay-details span,
+.receipt-financial-row span {
+  color: #6a768b;
+  font-size: 10px;
+}
+
+.receipt-reference-grid dd {
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
+  color: #1f2b3f;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.receipt-stay-details,
+.receipt-financials {
+  padding: 17px 0;
+  border-top: 1px solid #e9e9df;
+}
+
+.receipt-stay-details h2,
+.receipt-financials h2 {
+  margin: 0 0 12px;
+  color: #25324a;
+  font-size: 12px;
+  letter-spacing: .4px;
+}
+
+.receipt-stay-details > div,
+.receipt-financial-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 7px 0;
+}
+
+.receipt-stay-details b,
+.receipt-financial-row b {
+  color: #252e3e;
+  font-size: 11px;
+  text-align: right;
+}
+
+.receipt-total {
+  margin-top: 5px;
+  padding: 12px 0;
+  border-top: 1px dashed #c3cbd9;
+}
+
+.receipt-total span,
+.receipt-total b {
+  color: #131f4c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.receipt-pending-note {
+  margin: 6px 0 18px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  color: #795b27;
+  background: #fbf2df;
+}
+
+.receipt-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding-top: 14px;
+  border-top: 1px solid #e9e9df;
+  color: #889188;
+  font-size: 9px;
+}
+
+.receipt-actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 22px;
+}
+
+.receipt-print-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  background: #111f59;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.receipt-print-error {
+  color: #a53d33;
+  font-size: 11px;
+  text-align: center;
+}
+
+.receipt-page {
+  min-height: 100vh;
+  padding: 38px 16px;
+  background: #eaeefa;
+}
+
+.booking-success-state {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 26px;
+  color: #222f45;
+  background: #eaeefa;
+  text-align: center;
+}
+
+.booking-success-state h1 {
+  margin: 0;
+  color: #1b2536;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(26px, 5vw, 38px);
+}
+
+.booking-success-state p {
+  max-width: 500px;
+  margin: 0;
+  color: #5e6b81;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.booking-success-state .booking-success-substatus,
+.booking-success-state .booking-success-error {
+  font-size: 11px;
+}
+
+.booking-success-state .booking-success-error {
+  color: #a53d33;
+}
+
+.booking-success-state > a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 0 17px;
+  border-radius: 8px;
+  color: #fff;
+  background: #111f59;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.booking-cancelled-state {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px 16px;
+  color: var(--ink, #222f45);
+  background: var(--page-bg, #eaeefa);
+  text-align: center;
+}
+
+.booking-cancelled-card {
+  display: flex;
+  max-width: 540px;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 36px 28px;
+  border: 1px solid var(--border, rgba(109, 121, 143, 0.22));
+  border-radius: 18px;
+  background: var(--surface, rgba(255, 255, 255, 0.85));
+  box-shadow: var(--glass-shadow, 0 18px 48px rgba(29, 39, 57, 0.1));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.cancelled-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.booking-cancelled-card h1 {
+  margin: 0;
+  color: var(--ink, #1b2536);
+  font-family: "Playfair Display", serif;
+  font-size: clamp(24px, 4.5vw, 34px);
+}
+
+.booking-cancelled-card p {
+  max-width: 460px;
+  margin: 0;
+  color: var(--muted, #5e6b81);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.booking-cancelled-card .cancelled-note {
+  font-size: 11.5px;
+  opacity: 0.9;
+}
+
+.cancelled-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  margin-top: 10px;
+}
+
+.cancelled-actions > a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.cancelled-actions .button-retry {
+  color: #fff;
+  background: linear-gradient(135deg, #152669, #0e1c52);
+  box-shadow: 0 4px 14px rgba(15, 30, 93, 0.3);
+}
+
+.cancelled-actions .button-retry:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #1a2e7d, #122260);
+}
+
+.cancelled-actions .button-secondary {
+  color: var(--ink, #222f45);
+  background: var(--surface-strong, rgba(255, 255, 255, 0.9));
+  border: 1px solid var(--border, rgba(109, 121, 143, 0.3));
+}
+
+.cancelled-actions .button-secondary:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+}
+
+.cancelled-actions .button-tertiary {
+  color: var(--muted, #5e6b81);
+  font-size: 11px;
+}
+
+.cancelled-actions .button-tertiary:hover {
+  color: var(--ink, #1b2536);
+  text-decoration: underline;
+}
+
+.receipt-page .official-receipt {
+  border: 1px solid #dce1eb;
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgb(24 33 48 / 10%);
+}
+
+@media (max-width: 540px) {
+  .receipt-overlay {
+    align-items: start;
+    padding: 10px;
+  }
+
+  .receipt-modal {
+    max-height: none;
+  }
+
+  .receipt-reference-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-footer {
+    flex-direction: column;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .receipt-printing,
+  .receipt-printing * {
+    visibility: visible !important;
+  }
+
+  .receipt-printing {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .receipt-overlay,
+  .receipt-modal,
+  .receipt-page {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    max-height: none !important;
+    padding: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
+  .receipt-close,
+  .receipt-actions,
+  .receipt-print-error {
+    display: none !important;
+  }
+}
+
+/* Itemized room rate and (extra) guest entrance lines */
+.receipt-item-row {
+  padding: 4px 0;
+}
+
+.receipt-item-row span,
+.receipt-item-row b {
+  font-size: 10.5px;
+}
+
+.receipt-subtotal {
+  margin-top: 4px;
+  border-top: 1px solid #e3e8f0;
+}
+
+.receipt-subtotal span,
+.receipt-subtotal b {
+  font-weight: 700;
+}

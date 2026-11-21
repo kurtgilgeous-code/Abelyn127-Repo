@@ -6,6 +6,7 @@ import type { Request, Response } from 'express'
 import type { AuthenticatedRequest } from './auth.js'
 import {
   createBooking,
+  expirePendingHolds,
   findBookingPayment,
   findBooking,
   listAdminBookings,
@@ -21,7 +22,7 @@ import {
   type PaymentMethod,
   type TourType,
 } from './db.js'
-import { calculateServerBookingTotal } from './pricing.js'
+import { calculateServerBookingTotal, parseAccommodationIds, parseExtraGuests, parseStoredExtraGuests } from './pricing.js'
 
 const proofDirectory = process.env.PAYMENT_PROOF_DIR
   ? path.resolve(process.env.PAYMENT_PROOF_DIR)
@@ -62,10 +63,19 @@ function publicPayment(record: PaymentRecord) {
 function publicBooking(record: BookingRecord, payments: PaymentRecord[]) {
   return {
     id: record.id,
+    referenceNumber: record.reference_number,
+    paymentTier: record.payment_tier,
+    baseResortPrice: Number(record.base_resort_price),
+    baseDepositAmount: Number(record.base_deposit_amount),
+    gatewayFeeAmount: Number(record.gateway_fee_amount),
+    totalOnlinePaid: Number(record.total_online_paid),
+    cashBalanceDue: Number(record.cash_balance_due),
+    gatewayPaymentId: record.gateway_payment_id,
     createdAt: record.created_at,
     customerName: record.customer_name,
     customerContact: record.customer_email,
     accommodationId: record.accommodation_id,
+    accommodationIds: record.accommodation_ids?.length ? record.accommodation_ids : [record.accommodation_id],
     accommodationName: record.accommodation_name,
     tourType: record.tour_type,
     checkInDate: record.check_in_date,
@@ -76,17 +86,24 @@ function publicBooking(record: BookingRecord, payments: PaymentRecord[]) {
       children: record.children,
     },
     guestCount: record.guest_count,
+    extraGuests: parseStoredExtraGuests(record.extra_guests),
     estimatedTotal: Number(record.estimated_total),
     depositRequired: Number(record.deposit_required),
     paymentAmount: record.payment_amount === null ? null : Number(record.payment_amount),
     paidAmount: Number(record.paid_amount),
     status: record.status,
-    paymentStatus: record.payment_status,
+    paymentStatus: record.payment_tier === 'WALKIN_CASH_NO_RESERVATION' &&
+      record.payment_status === 'PAID'
+      ? 'PAID_CASH'
+      : record.payment_status,
     paymentMethod: record.payment_method,
     paymentReference: record.payment_reference,
     proofFileName: record.proof_file_name,
     hasPaymentProof: Boolean(record.proof_storage_key),
     payments: payments.map(publicPayment),
+    expiresAt: record.expires_at ? new Date(record.expires_at).toISOString() : null,
+    priorityRank: record.priority_rank === null ? null : Number(record.priority_rank),
+    holdReferenceNumber: record.hold_reference_number,
   }
 }
 
@@ -155,24 +172,25 @@ export async function createCustomerBooking(request: AuthenticatedRequest, respo
   const estimatedTotal = body.estimatedTotal
   const depositRequired = body.depositRequired
   const tourType = body.tourType
+  const accommodationIds = parseAccommodationIds(body)
+  const extras = parseExtraGuests(body)
   const expectedPricing = tourTypes.includes(tourType as TourType) &&
-    typeof body.accommodationId === 'string' &&
+    accommodationIds && extras !== null &&
     Number.isInteger(adults) && adults >= 0 &&
     Number.isInteger(seniorsPwd) && seniorsPwd >= 0 &&
     Number.isInteger(children) && children >= 0
     ? calculateServerBookingTotal(
-      body.accommodationId,
+      accommodationIds,
       tourType as TourType,
       { adults, seniorsPwd, children },
       (Date.parse(`${body.checkOutDate}T00:00:00.000Z`) - Date.parse(`${body.checkInDate}T00:00:00.000Z`)) / 86_400_000,
+      extras,
     )
     : null
   if (
-    typeof body.accommodationId !== 'string' || !body.accommodationId ||
-    typeof body.accommodationName !== 'string' || !body.accommodationName ||
+    !accommodationIds ||
     !tourTypes.includes(tourType as TourType) ||
     !expectedPricing ||
-    body.accommodationName !== expectedPricing.accommodationName ||
     !validDate(body.checkInDate) || !validDate(body.checkOutDate) ||
     body.checkOutDate <= body.checkInDate ||
     adults < 0 || seniorsPwd < 0 || children < 0 || guestCount < 1 ||
@@ -201,8 +219,10 @@ export async function createCustomerBooking(request: AuthenticatedRequest, respo
     await createBooking({
       id,
       userId,
-      accommodationId: body.accommodationId,
-      accommodationName: body.accommodationName,
+      customerName: request.authUser?.name ?? '',
+      customerEmail: request.authUser?.email ?? '',
+      accommodationIds: expectedPricing.accommodationIds,
+      accommodationName: expectedPricing.accommodationName,
       tourType: tourType as TourType,
       checkInDate: body.checkInDate,
       checkOutDate: body.checkOutDate,
@@ -210,6 +230,7 @@ export async function createCustomerBooking(request: AuthenticatedRequest, respo
       seniorsPwd,
       children,
       guestCount,
+      extraGuests: expectedPricing.extraGuests,
       estimatedTotal: expectedPricing.total,
       depositRequired: expectedPricing.deposit,
       paymentAmount,
@@ -232,11 +253,13 @@ export async function customerBookings(request: AuthenticatedRequest, response: 
     response.status(401).json({ message: 'Please sign in to view your bookings.' })
     return
   }
+  await expirePendingHolds()
   const records = await listCustomerBookings(userId)
   response.json({ bookings: await bookingsWithPayments(records) })
 }
 
 export async function adminBookings(_request: Request, response: Response) {
+  await expirePendingHolds()
   const records = await listAdminBookings()
   response.json({ bookings: await bookingsWithPayments(records) })
 }

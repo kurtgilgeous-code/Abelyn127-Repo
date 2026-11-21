@@ -1,0 +1,124 @@
+/* Ambient mango grove + sunrays. Fixed, click-through, and behind every positioned element
+   (cards, header, hero), so it only shows through the open page background. */
+.ambient-atmosphere {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ---------- Diagonal sunrays (Day) / moonlit sapphire beams (Night) ---------- */
+.ambient-rays {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(125deg, rgba(253, 224, 71, .16), transparent 65%);
+}
+
+.ambient-rays span {
+  position: absolute;
+  top: -30vh;
+  width: 11vw;
+  height: 170vh;
+  background: linear-gradient(180deg, rgba(255, 226, 140, .26), rgba(255, 226, 140, .08) 55%, transparent 85%);
+  filter: blur(10px);
+  transform: rotate(-35deg);
+  transform-origin: 50% 0;
+  animation: ray-breathe 11s ease-in-out infinite alternate;
+}
+
+.ambient-rays span:nth-child(1) { left: 6%; width: 8vw; }
+.ambient-rays span:nth-child(2) { left: 20%; width: 13vw; animation-delay: -3s; animation-duration: 13s; }
+.ambient-rays span:nth-child(3) { left: 38%; width: 6vw; animation-delay: -6s; }
+.ambient-rays span:nth-child(4) { left: 54%; width: 10vw; animation-delay: -2s; animation-duration: 15s; }
+.ambient-rays span:nth-child(5) { left: 74%; width: 7vw; animation-delay: -8s; animation-duration: 12s; }
+
+@keyframes ray-breathe {
+  from { opacity: .45; }
+  to { opacity: 1; }
+}
+
+:root[data-theme='dark'] .ambient-rays {
+  background: linear-gradient(125deg, rgba(59, 130, 246, .07), transparent 60%);
+}
+
+:root[data-theme='dark'] .ambient-rays span {
+  background: linear-gradient(180deg, rgba(120, 160, 255, .1), rgba(120, 160, 255, .03) 55%, transparent 85%);
+}
+
+/* ---------- Mango trees ---------- */
+.mango-tree {
+  position: absolute;
+  top: 0;
+  height: 100vh;
+  width: calc(100vh * 320 / 900);
+  max-width: 40vw;
+  opacity: .3;
+}
+
+.mango-tree-left { left: -70px; }
+.mango-tree-right { right: -70px; transform: scaleX(-1); }
+
+.mango-trunk { fill: #7a5636; }
+.mango-branches path { fill: none; stroke: #7a5636; stroke-width: 9; stroke-linecap: round; }
+.mango-shade { fill: #3d6e35; opacity: .55; }
+.mango-leaf-0 { fill: #4f8a3f; }
+.mango-leaf-1 { fill: #6aa04c; }
+.mango-leaf-2 { fill: #2f6531; }
+.mango-stem { stroke: #5b4128; stroke-width: 2; stroke-linecap: round; }
+.mango-stop-1 { stop-color: #b7c94a; }
+.mango-stop-2 { stop-color: #f2c043; }
+.mango-stop-3 { stop-color: #e98a2f; }
+
+/* Night: moonlit silhouettes */
+:root[data-theme='dark'] .mango-tree { opacity: .2; }
+:root[data-theme='dark'] .mango-trunk { fill: #26324a; }
+:root[data-theme='dark'] .mango-branches path { stroke: #26324a; }
+:root[data-theme='dark'] .mango-shade { fill: #142238; }
+:root[data-theme='dark'] .mango-leaf-0 { fill: #2c4a5e; }
+:root[data-theme='dark'] .mango-leaf-1 { fill: #3c6170; }
+:root[data-theme='dark'] .mango-leaf-2 { fill: #1d3346; }
+:root[data-theme='dark'] .mango-stem { stroke: #26324a; }
+:root[data-theme='dark'] .mango-stop-1 { stop-color: #6f7f52; }
+:root[data-theme='dark'] .mango-stop-2 { stop-color: #a8904c; }
+:root[data-theme='dark'] .mango-stop-3 { stop-color: #8f6a3e; }
+
+/* Gentle sway: the canopy from the top of the trunk, each mango from its stem */
+.mango-canopy {
+  transform-box: view-box;
+  transform-origin: 30% 46%;
+  animation: canopy-sway 9s ease-in-out infinite alternate;
+}
+
+.mango-fruit {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  animation: mango-swing 4.5s ease-in-out infinite alternate;
+}
+
+@keyframes canopy-sway {
+  from { transform: rotate(-1.2deg); }
+  to { transform: rotate(1.4deg); }
+}
+
+@keyframes mango-swing {
+  from { transform: rotate(-5deg); }
+  to { transform: rotate(5deg); }
+}
+
+@media (max-width: 720px) {
+  .mango-tree { height: 72vh; width: calc(72vh * 320 / 900); opacity: .22; }
+  .mango-tree-left { left: -90px; }
+  .mango-tree-right { right: -90px; }
+  .ambient-rays span:nth-child(n + 4) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-rays span,
+  .mango-canopy,
+  .mango-fruit { animation: none; }
+}
+
+@media print {
+  .ambient-atmosphere { display: none; }
+}
