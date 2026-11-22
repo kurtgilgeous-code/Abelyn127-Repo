@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { holdMillisecondsLeft } from '../data/bookings'
 
-/** Live HH:MM:SS countdown to a pending hold's 24-hour expiry. */
+/** Live countdown to when a walk-in voucher expires. */
 export default function HoldCountdown({ expiresAt, className = '' }: { expiresAt: string, className?: string }) {
   const [now, setNow] = useState(() => Date.now())
 
@@ -19,7 +19,7 @@ export default function HoldCountdown({ expiresAt, className = '' }: { expiresAt
 
   return (
     <span className={`hold-countdown ${left === 0 ? 'is-expired' : ''} ${className}`.trim()} role="timer" aria-live="off">
-      {left === 0 ? 'Expired' : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`}
+      {left === 0 ? 'Expired' : hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h ${pad(minutes)}m` : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`}
     </span>
   )
 }

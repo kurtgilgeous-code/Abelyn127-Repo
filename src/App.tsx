@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   Info,
   LogOut,
   Leaf,
+  Menu,
   Minus,
   Moon,
   Plus,
@@ -46,6 +47,9 @@ import {
 import HoldCountdown from './components/HoldCountdown'
 import { BOOKING_MAX_GUESTS, calculateBookingTotal, combineAccommodations, entranceRates, formatPeso, priceAccommodations, usesOvernightRates } from './utils/pricing'
 import ResortLogo from './components/ResortLogo'
+import CustomerSideNav from './components/CustomerSideNav'
+import ProceedBookingBar from './components/ProceedBookingBar'
+import { sideNavSections } from './components/sideNavSections'
 import AdminPage from './AdminPage'
 import AuthPage from './AuthPage'
 import { AuthProvider } from './auth/AuthProvider'
@@ -69,6 +73,9 @@ import './theme/brand.css'
 import './theme/luxury.css'
 import './theme/sunlit.css'
 import './theme/polish.css'
+import './theme/buttons.css'
+import './theme/readable.css'
+import './theme/responsive.css'
 
 type GuestType = 'adults' | 'seniorsPwd' | 'children'
 type GuestCounts = Record<GuestType, number>
@@ -127,7 +134,7 @@ const navSections = [
   { id: 'my-inquiry', label: 'My bookings & payments' },
   { id: 'amenities', label: 'Amenities' },
 ]
-const navSectionIds = navSections.map((section) => section.id)
+const sideNavSectionIds = sideNavSections.map((section) => section.id)
 
 /** Known accommodation IDs, de-duplicated, in the resort's listing order. */
 function orderedAccommodationIds(ids: string[]) {
@@ -238,7 +245,7 @@ function CustomerPage() {
   const { user, token, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const [guestBookingDraft] = useState(readGuestBookingDraft)
-  const [selectedIds, setSelectedIds] = useState<string[]>(guestBookingDraft?.selectedIds ?? [accommodations[0].id])
+  const [selectedIds, setSelectedIds] = useState<string[]>(guestBookingDraft?.selectedIds ?? [])
   const [tourType, setTourType] = useState<TourType>(guestBookingDraft?.tourType ?? 'OVERNIGHT')
   const [checkInDate, setCheckInDate] = useState(guestBookingDraft?.checkInDate ?? tomorrow)
   const [checkOutDate, setCheckOutDate] = useState(
@@ -274,7 +281,11 @@ function CustomerPage() {
   const [paymentNotification, setPaymentNotification] = useState<{ message: string; rejected: boolean; bookingId: string } | null>(null)
   const [receiptBooking, setReceiptBooking] = useState<Booking | null>(null)
   const [galleryStayId, setGalleryStayId] = useState<string | null>(null)
-  const { active: activeSection, scrollTo: scrollToSection } = useScrollSpy(navSectionIds)
+  const { active: activeSection, scrollTo: scrollToSection } = useScrollSpy(sideNavSectionIds)
+  const [sideNavOpen, setSideNavOpen] = useState(false)
+  const closeSideNav = useCallback(() => setSideNavOpen(false), [])
+  // "Proceed to Booking" pop-up: armed by picking a stay card, shown while browsing the stays.
+  const [proceedBarArmed, setProceedBarArmed] = useState(false)
   useAnimateOnScroll()
   const scrollProgressRef = useScrollProgress<HTMLSpanElement>()
   const navRef = useRef<HTMLElement>(null)
@@ -349,7 +360,7 @@ function CustomerPage() {
     const interval = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(interval)
   }, [])
-  const availabilityStatus = !checkInDate || !checkOutDate || checkOutDate <= checkInDate
+  const availabilityStatus = selectedIds.length === 0 || !checkInDate || !checkOutDate || checkOutDate <= checkInDate
     ? 'idle'
     : availabilityResult?.key === availabilityKey
       ? availabilityResult.available ? 'available' : 'unavailable'
@@ -371,7 +382,7 @@ function CustomerPage() {
   }, [guestBookingDraft])
 
   useEffect(() => {
-    if (!checkInDate || !checkOutDate || checkOutDate <= checkInDate) {
+    if (!selectedKey || !checkInDate || !checkOutDate || checkOutDate <= checkInDate) {
       return
     }
     const controller = new AbortController()
@@ -491,9 +502,8 @@ function CustomerPage() {
     setAvailabilityErrorKey(null)
   }
 
-  /** Adds or removes an accommodation; a booking always keeps at least one. */
+  /** Adds or removes an accommodation. The guest chooses; nothing is pre-selected. */
   const toggleStay = (stayId: string) => {
-    if (selectedIds.length === 1 && selectedIds[0] === stayId) return
     resetAvailabilityCheck()
     setSelectedIds(orderedAccommodationIds(
       selectedIds.includes(stayId) ? selectedIds.filter((id) => id !== stayId) : [...selectedIds, stayId],
@@ -604,7 +614,7 @@ function CustomerPage() {
         .then(setBookings)
         .catch((error: unknown) => console.error('Could not refresh bookings after placing a hold:', error))
     } catch (error) {
-      setStorageError(error instanceof Error ? error.message : 'Could not place the 24-hour hold.')
+      setStorageError(error instanceof Error ? error.message : 'Could not create your walk-in voucher.')
     } finally {
       setHoldSubmitting(false)
     }
@@ -634,7 +644,26 @@ function CustomerPage() {
     <div className="site-shell">
       <AmbientAtmosphere />
       <FallingLeaves />
+      <CustomerSideNav
+        open={sideNavOpen}
+        onClose={closeSideNav}
+        activeSection={activeSection}
+        onNavigate={scrollToSection}
+        bookingCount={bookings.length}
+        user={user ? { email: user.email, role: user.role } : null}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onSignOut={() => { logout().catch((error: unknown) => setLogoutError(error instanceof Error ? error.message : 'Could not sign out.')) }}
+      />
+      {proceedBarArmed && selectedStays.length > 0 && activeSection === 'stays' && !sideNavOpen && !galleryStayId && (
+        <ProceedBookingBar
+          stayNames={selectedStays.map((stay) => stay.name)}
+          onProceed={() => { setProceedBarArmed(false); scrollToSection('booking') }}
+          onDismiss={() => setProceedBarArmed(false)}
+        />
+      )}
       <header className="site-header">
+        <button type="button" className="customer-menu-button" aria-label="Open menu" aria-controls="customer-side-menu" aria-expanded={sideNavOpen} onClick={() => setSideNavOpen(true)}><Menu size={23} /></button>
         <a className="brand brand-logo" href="#home" aria-label="Tampisawan home">
           <ResortLogo className="resort-logo-navbar" />
         </a>
@@ -730,7 +759,6 @@ function CustomerPage() {
           <div className="stay-grid">
             {accommodations.map((stay, index) => {
               const isSelected = selectedIds.includes(stay.id)
-              const isOnlySelection = isSelected && selectedIds.length === 1
               return (
                 <article className={`stay-card ${stay.exclusiveWholeResort ? 'is-exclusive' : 'is-shared'} ${isSelected ? 'is-selected' : ''}`} key={stay.id} data-aos="fade-up" data-aos-delay={(index % 3) * 100}>
                   <div className={`stay-art stay-art-${index + 1} ${stay.photos.length ? 'has-photo' : ''}`}>
@@ -741,7 +769,7 @@ function CustomerPage() {
                       aria-label={`View inside and outside photos of ${stay.name}`}
                       onClick={() => setGalleryStayId(stay.id)}
                     >
-                      <Images size={13} /> View photos{stay.photos.length > 0 && <span>{stay.photos.length}</span>}
+                      <Images size={13} /> <span className="photos-label-full">View photos</span><span className="photos-label-short">Photos</span>{stay.photos.length > 0 && <span className="stay-photos-count">{stay.photos.length}</span>}
                     </button>
                     <span className="stay-art-icon">
                       {index === 3 || index === 7 ? <TentTree size={29} /> : index === 2 || index === 5 ? <Compass size={29} /> : <House size={29} />}
@@ -792,18 +820,16 @@ function CustomerPage() {
                         </span>
                       </div>
                     )}
-                    <Tooltip label={isOnlySelection ? 'Every booking needs at least one accommodation' : ''}>
                     <button
                       className={`select-stay ${isSelected ? 'selected' : ''}`}
                       type="button"
                       aria-pressed={isSelected}
-                      onClick={() => toggleStay(stay.id)}
+                      onClick={() => { toggleStay(stay.id); setProceedBarArmed(true) }}
                     >
                       {isSelected
-                        ? <><Check size={15} /> {isOnlySelection ? 'Selected' : 'Added · tap to remove'}</>
-                        : <>{selectedIds.length ? 'Add to booking' : 'Choose this stay'} <Plus size={15} /></>}
+                        ? <><Check size={15} /> Added · Remove</>
+                        : <>Add to booking <Plus size={15} /></>}
                     </button>
-                    </Tooltip>
                   </div>
                 </article>
               )
@@ -849,7 +875,6 @@ function CustomerPage() {
                         <input
                           type="checkbox"
                           checked={checked}
-                          disabled={checked && selectedIds.length === 1}
                           onChange={() => toggleStay(stay.id)}
                         />
                         <span className="stay-option-box" aria-hidden="true">{checked && <Check size={11} strokeWidth={3} />}</span>
@@ -863,15 +888,17 @@ function CustomerPage() {
                   })}
                 </div>
                 <small className="field-hint">
-                  {selectedStays.length} selected · <b>room for {combinedStay.maxGuests} pax</b>
-                  {selectedStays.length > 1 && ` (${selectedStays.map((stay) => stay.capacity).join(' + ')})`}
+                  {selectedStays.length === 0
+                    ? <b>Select at least one accommodation to continue.</b>
+                    : <>{selectedStays.length} selected · <b>room for {combinedStay.maxGuests} pax</b>
+                      {selectedStays.length > 1 && ` (${selectedStays.map((stay) => stay.capacity).join(' + ')})`}</>}
                 </small>
                 <small className="field-hint tour-rate-hint">
                   {overnightPricing
                     ? <>Overnight rate{tourType === 'OVERNIGHT' ? ' (22 hours)' : ` for each of the ${stayDays} days`}: entrance is included for up to the room&apos;s pax; each extra guest pays {formatPeso(entranceRates.OVERNIGHT.adults)} per adult and {formatPeso(entranceRates.OVERNIGHT.children)} per senior/PWD/child (Gazebo, Calesa Tables, and Kubo ni Gerrant: every guest).</>
                     : <>{tourDetails[tourType].label} ({tourDetails[tourType].checkIn}–{tourDetails[tourType].checkOut}): the room rate includes entrance for up to the room&apos;s pax; each extra guest pays {formatPeso(entranceRates[tourType].adults)} per adult and {formatPeso(entranceRates[tourType].children)} per senior/PWD/child (Gazebo, Calesa Tables, and Kubo ni Gerrant: every guest). 2 or more days uses the overnight rate.</>}
                 </small>
-                {combinedStay.exclusiveWholeResort ? (
+                {selectedStays.length === 0 ? null : combinedStay.exclusiveWholeResort ? (
                   <div className="exclusive-resort-note booking-exclusive-note gold-glass-callout">
                     <ShieldCheck size={16} />
                     <span>
@@ -925,7 +952,7 @@ function CustomerPage() {
                   ? 'Checking these dates…'
                   : availabilityStatus === 'available'
                     ? datesHaveSoftHold
-                      ? 'Still open: another guest has a 24-hour hold on these dates, but holds don\'t reserve them. The first booking confirmed gets the dates.'
+                      ? 'Still open: another guest has a walk-in voucher for these dates, but vouchers don\'t reserve them. The first booking confirmed gets the dates.'
                       : combinedStay.exclusiveWholeResort
                         ? 'Dates look available. The whole resort is reserved for you once this booking is confirmed.'
                         : 'No confirmed booking overlaps these dates.'
@@ -937,12 +964,14 @@ function CustomerPage() {
                         : 'These dates overlap with a confirmed booking. Choose another range.'
                       : availabilityStatus === 'error'
                         ? 'Availability could not be checked. Please contact the resort before booking.'
-                        : 'Choose a valid date range to check availability.'}
+                        : selectedStays.length === 0
+                          ? 'Select an accommodation to check these dates.'
+                          : 'Choose a valid date range to check availability.'}
               </p>
               <p className="fcfs-note">
                 <Info size={14} aria-hidden="true" />
                 <span>
-                  <b>First come, first served.</b> Dates stay open to everyone until a booking is confirmed: by a verified 50% GCash deposit, or by cash received at the resort. Inquiries and 24-hour holds don&apos;t reserve a date.
+                  <b>First come, first served.</b> Dates stay open to everyone until a booking is confirmed: by a verified 50% GCash deposit, or by cash received at the resort. Inquiries and walk-in vouchers don&apos;t reserve a date.
                 </span>
               </p>
               <div className="form-field guest-field">
@@ -1007,7 +1036,7 @@ function CustomerPage() {
                     <AlertTriangle size={14} aria-hidden="true" />
                     <span>One booking can have up to {guestLimit} guests. For a bigger group, please contact the resort.</span>
                   </p>
-                ) : roomPax === null && guestCount > combinedStay.maxGuests ? (
+                ) : selectedStays.length > 0 && roomPax === null && guestCount > combinedStay.maxGuests ? (
                   <p className="pax-limit-note">
                     <Info size={14} aria-hidden="true" />
                     <span>{guestCount - combinedStay.maxGuests} more than the room&apos;s {combinedStay.maxGuests} pax. That&apos;s fine: every guest pays the entrance fee, already in your total.</span>
@@ -1017,6 +1046,9 @@ function CustomerPage() {
 
               <div className="estimate-box">
                 <div className="estimate-heading"><span><Sparkles size={15} /> YOUR ESTIMATED TOTAL</span><small>PHP</small></div>
+                {selectedStays.length === 0 ? (
+                  <p className="estimate-empty"><Info size={16} aria-hidden="true" /> Select an accommodation to see your total and payment options.</p>
+                ) : (<>
                 {selectedStays.map((stay) => (
                   <div className="estimate-line" key={stay.id}><span>{stay.name} (room for {stay.capacity}) · {stayDays} {stayDays === 1 ? 'day' : 'days'} × {formatPeso(stay.baseRate)}{overnightPricing && tourType !== 'OVERNIGHT' ? ' (overnight rate)' : ''}</span><b>{formatPeso(stay.baseRate * totals.stayDays)}</b></div>
                 ))}
@@ -1063,12 +1095,15 @@ function CustomerPage() {
                     : `Entrance fees apply per day to guests above the ${combinedStay.capacity}-guest ${selectedStays.length > 1 ? 'combined capacity' : 'capacity'}.`}
                   {' '}The gateway fee is shown separately from the resort rate.
                 </p>
+                </>)}
               </div>
               {storageError && <p className="customer-error" role="alert">{storageError}</p>}
-              <button ref={reviewButtonRef} className="review-button" type="button" onClick={signInToBook} disabled={!checkInDate || !checkOutDate || checkOutDate <= checkInDate || guestCount === 0 || overGuestLimit || availabilityStatus === 'checking' || availabilityStatus === 'unavailable'}>
-                {user
-                  ? paymentChoice === 'ONLINE' ? 'Review & pay deposit via GCash' : 'Review walk-in & get voucher'
-                  : 'Sign In to Book'} <ArrowRight size={17} />
+              <button ref={reviewButtonRef} className="review-button" type="button" onClick={signInToBook} disabled={selectedStays.length === 0 || !checkInDate || !checkOutDate || checkOutDate <= checkInDate || guestCount === 0 || overGuestLimit || availabilityStatus === 'checking' || availabilityStatus === 'unavailable'}>
+                {selectedStays.length === 0
+                  ? 'Select an accommodation first'
+                  : user
+                    ? paymentChoice === 'ONLINE' ? 'Review & pay deposit via GCash' : 'Review walk-in & get voucher'
+                    : 'Sign In to Book'} <ArrowRight size={17} />
               </button>
               <p className="form-footnote">
                 {paymentChoice === 'ONLINE'
@@ -1123,7 +1158,9 @@ function CustomerPage() {
                               ? `Walk-in voucher · valid for ${formatHoldTimeLeft(holdMillisecondsLeft(booking.expiresAt, now))} · pay cash at the resort, or secure it now with GCash`
                               : 'Pending hold expired · dates released'
                             : booking.status === 'EXPIRED'
-                            ? 'Pending hold expired after 24 hours · dates released'
+                            ? booking.paymentTier === 'ONLINE_GCASH_RESERVATION'
+                              ? 'GCash checkout not finished · no payment received. Book again to reserve these dates.'
+                              : 'Voucher expired after the check-in date · dates released'
                             : booking.status === 'CANCELLED_BY_GCASH_PRIORITY'
                             ? 'Hold released · another guest\'s booking was confirmed first'
                             : booking.status === 'DATE_UNAVAILABLE'
@@ -1170,9 +1207,9 @@ function CustomerPage() {
               <div className="lookup-result">
                 <div className="lookup-result-top">
                   <span><b>{lookupBooking.accommodationName}</b><small>{tourDetails[lookupBooking.tourType].label} · {formattedDate(lookupBooking.checkInDate)} – {formattedDate(displayCheckoutDate(lookupBooking.checkOutDate, lookupBooking.tourType))} · {lookupBooking.guestCount} guests</small></span>
-                  <span className={`status-badge status-${lookupBooking.status.toLowerCase()}`}>{lookupBooking.status === 'PENDING' ? 'Under review' : lookupBooking.status === 'CONFIRMED' ? 'Confirmed' : lookupBooking.status === 'DATE_UNAVAILABLE' ? 'Dates unavailable' : lookupBooking.status === 'PENDING_HOLD' ? '24-hr hold' : lookupBooking.status === 'EXPIRED' ? 'Hold expired' : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Hold released' : 'Declined'}</span>
+                  <span className={`status-badge status-${lookupBooking.status.toLowerCase()}`}>{lookupBooking.status === 'PENDING' ? 'Under review' : lookupBooking.status === 'CONFIRMED' ? 'Confirmed' : lookupBooking.status === 'DATE_UNAVAILABLE' ? 'Dates unavailable' : lookupBooking.status === 'PENDING_HOLD' ? 'Walk-in voucher' : lookupBooking.status === 'EXPIRED' ? (lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? 'Checkout not finished' : 'Voucher expired') : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Hold released' : 'Declined'}</span>
                 </div>
-                <p className="lookup-payment-state"><CircleDollarSign size={15} /> {lookupBooking.status === 'PENDING_HOLD' ? (isActiveHold(lookupBooking, now) ? `Heads-up hold only (first-come, first-served). It expires in ${formatHoldTimeLeft(holdMillisecondsLeft(lookupBooking.expiresAt, now))}. Pay ${formatPeso(lookupBooking.baseResortPrice)} in cash at the resort before then, or secure the date now with the GCash deposit.` : 'This pending hold has expired and the dates were released.') : lookupBooking.status === 'EXPIRED' ? 'This pending hold expired after 24 hours without payment, so the dates were released.' : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Another guest\'s booking for these dates was confirmed first (first come, first served), so this unpaid hold was released.' : lookupBooking.status === 'DATE_UNAVAILABLE' ? `Your payment of ${formatPeso(lookupBooking.paidAmount)} was received, but another confirmed booking secured these dates first. The resort will contact you to arrange a refund or discuss alternatives.` : lookupBooking.status === 'CANCELLED' ? 'This booking was cancelled by the resort.' : lookupBooking.paymentStatus === 'PAID_CASH' ? 'Walk-in cash payment received in full. Your booking is confirmed.' : lookupBooking.paymentStatus === 'PAID' ? 'Full payment verified. Your booking is successful.' : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' && lookupBooking.gatewayPaymentId ? `GCash payment confirmed. The remaining ${formatPeso(Math.max(0, lookupBooking.baseResortPrice - lookupBooking.paidAmount))} base balance is due in cash at check-in.` : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? `GCash payment is awaiting HitPay confirmation. Total due now: ${formatPeso(lookupBooking.totalOnlinePaid)}.` : lookupBooking.paymentStatus === 'PENDING_REVIEW' ? 'Your manual payment proof is waiting for admin review.' : lookupBooking.paymentStatus === 'NOT_PAID' ? 'The payment was not confirmed.' : 'Your booking is waiting for payment confirmation.'}</p>
+                <p className="lookup-payment-state"><CircleDollarSign size={15} /> {lookupBooking.status === 'PENDING_HOLD' ? (isActiveHold(lookupBooking, now) ? `Heads-up hold only (first-come, first-served). It expires in ${formatHoldTimeLeft(holdMillisecondsLeft(lookupBooking.expiresAt, now))}. Pay ${formatPeso(lookupBooking.baseResortPrice)} in cash at the resort before then, or secure the date now with the GCash deposit.` : 'This pending hold has expired and the dates were released.') : lookupBooking.status === 'EXPIRED' ? (lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? 'This GCash checkout was not finished, so no payment was received. Book again to reserve these dates.' : 'This voucher expired after the check-in date without payment, so the dates were released.') : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Another guest\'s booking for these dates was confirmed first (first come, first served), so this unpaid hold was released.' : lookupBooking.status === 'DATE_UNAVAILABLE' ? `Your payment of ${formatPeso(lookupBooking.paidAmount)} was received, but another confirmed booking secured these dates first. The resort will contact you to arrange a refund or discuss alternatives.` : lookupBooking.status === 'CANCELLED' ? 'This booking was cancelled by the resort.' : lookupBooking.paymentStatus === 'PAID_CASH' ? 'Walk-in cash payment received in full. Your booking is confirmed.' : lookupBooking.paymentStatus === 'PAID' ? 'Full payment verified. Your booking is successful.' : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' && lookupBooking.gatewayPaymentId ? `GCash payment confirmed. The remaining ${formatPeso(Math.max(0, lookupBooking.baseResortPrice - lookupBooking.paidAmount))} base balance is due in cash at check-in.` : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? `GCash payment is awaiting HitPay confirmation. Total due now: ${formatPeso(lookupBooking.totalOnlinePaid)}.` : lookupBooking.paymentStatus === 'PENDING_REVIEW' ? 'Your manual payment proof is waiting for admin review.' : lookupBooking.paymentStatus === 'NOT_PAID' ? 'The payment was not confirmed.' : 'Your booking is waiting for payment confirmation.'}</p>
                 {lookupBooking.status === 'DATE_UNAVAILABLE' && (
                   <p className="customer-date-unavailable">
                     To arrange a refund or discuss alternatives, message the resort on{' '}
@@ -1296,7 +1333,7 @@ function CustomerPage() {
                     <b>{holdConfirmation.referenceNumber}</b>
                   </div>
                   <div className="hold-timer-card">
-                    <span>Voucher held for</span>
+                    <span>Voucher valid for</span>
                     <HoldCountdown expiresAt={holdConfirmation.expiresAt} />
                     <small>{new Date(holdConfirmation.expiresAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (Philippine time)</small>
                   </div>
@@ -1306,7 +1343,7 @@ function CustomerPage() {
                     <div className="review-total"><span>Cash due at the resort</span><b>{formatPeso(totals.grandTotal)}</b></div>
                   </div>
                   <p className="hold-disclaimer">
-                    First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid for 24 hours.
+                    First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid until the end of your check-in date.
                   </p>
                   <button type="button" className="review-button modal-done" disabled={!heldBooking} onClick={() => heldBooking && setReceiptBooking(heldBooking)}>
                     {heldBooking ? 'View & print walk-in voucher' : 'Preparing your voucher…'} <ArrowRight size={16} />
@@ -1335,7 +1372,7 @@ function CustomerPage() {
                 {holdSubmitting ? 'Creating your voucher…' : 'Confirm walk-in & get voucher'} <ArrowRight size={16} />
               </button>
               <p className="hold-disclaimer">
-                First come, first served: a walk-in does not reserve the date. Your voucher is held for 24 hours; the dates are yours once the cash is paid at the resort, as long as no one else has confirmed them first. To lock the dates now, choose the online GCash reservation instead.
+                First come, first served: a walk-in does not reserve the date. Your voucher is valid until the end of your check-in date; the dates are yours once the cash is paid at the resort, as long as no one else has confirmed them first. To lock the dates now, choose the online GCash reservation instead.
               </p>
               <button className="hold-secondary-button" type="button" onClick={() => setPaymentChoice('ONLINE')} disabled={holdSubmitting}>
                 Switch to online GCash reservation

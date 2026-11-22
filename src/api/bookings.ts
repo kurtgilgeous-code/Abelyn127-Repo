@@ -34,14 +34,14 @@ export async function fetchAvailability(
   }
   return {
     available: body.available,
-    /** Another guest has an unexpired 24-hour cash hold on these dates (soft, not blocking). */
+    /** Another guest has an unexpired walk-in voucher on these dates (soft, not blocking). */
     pendingHold: 'pendingHold' in body && body.pendingHold === true,
     /** The resort closed these dates (maintenance / private use). */
     blocked: 'blocked' in body && body.blocked === true,
   }
 }
 
-/** Priority #2: hold a date for 24 hours as a pending cash inquiry (no payment now). */
+/** Priority #2: a walk-in voucher, valid through the check-in date (no payment now). */
 export async function createPendingHold(
   token: string,
   booking: StayRequest,

@@ -23,7 +23,7 @@ export default function BookingReceiptModal({
   const holdStatusText = booking.status === 'PENDING_HOLD'
     ? 'Walk-in voucher · awaiting cash payment'
     : booking.status === 'EXPIRED'
-      ? 'Expired after 24 hours · dates released'
+      ? 'Expired after the check-in date · dates released'
       : booking.status === 'CANCELLED_BY_GCASH_PRIORITY'
         ? 'Released · another booking was confirmed first'
         : booking.status
@@ -70,7 +70,7 @@ export default function BookingReceiptModal({
         <ResortLogo className="receipt-logo" tone="print" />
         <span className="receipt-kicker">TAMPISAWAN 927 · ABELYN&apos;S PRIVATE POOL</span>
         <h1>{isHold ? 'Walk-In Voucher' : 'Official Booking Receipt'}</h1>
-        <p>{isHold ? 'Show this voucher at the resort and pay in cash within 24 hours. Your dates are confirmed once the cash is received.' : 'Keep this receipt for check-in and payment reference.'}</p>
+        <p>{isHold ? 'Show this voucher at the resort and pay in cash on or before your check-in date. Your dates are confirmed once the cash is received.' : 'Keep this receipt for check-in and payment reference.'}</p>
       </header>
       <dl className="receipt-reference-grid">
         <div><dt>Booking reference</dt><dd>{booking.referenceNumber}</dd></div>
@@ -157,7 +157,7 @@ export default function BookingReceiptModal({
         <p className="receipt-pending-note">This receipt becomes official after HitPay confirms payment through its signed webhook.</p>
       )}
       {isHold && (
-        <p className="receipt-pending-note">First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid for 24 hours.</p>
+        <p className="receipt-pending-note">First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid until the end of your check-in date.</p>
       )}
       {booking.status === 'DATE_UNAVAILABLE' && (
         <p className="receipt-pending-note">Payment was received after another confirmed booking secured these dates. Contact the resort for refund or alternative-date follow-up.</p>

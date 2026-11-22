@@ -288,7 +288,7 @@ app.listen(port, '0.0.0.0', () => {
 // current even when nobody is browsing (the Cloudflare Worker uses a cron trigger instead).
 const holdExpirySweep = setInterval(() => {
   expirePendingHolds()
-    .then((expired) => { if (expired) console.log(`Expired ${expired} pending cash hold(s).`) })
+    .then((expired) => { if (expired) console.log(`Expired ${expired} unpaid voucher(s) or checkout(s).`) })
     .catch((error: unknown) => console.error('Pending-hold expiry sweep failed:', error))
 }, 15 * 60 * 1000)
 holdExpirySweep.unref()

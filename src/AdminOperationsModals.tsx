@@ -189,7 +189,7 @@ export function RescheduleModal({ booking, token, onClose, onDone }: {
         <form onSubmit={submit}>
           <label htmlFor="reschedule-date">New check-in date</label>
           <input id="reschedule-date" type="date" min={todayInManila()} value={checkInDate} onChange={(event) => setCheckInDate(event.target.value)} required />
-          <small className="ops-hint">Refused if the new dates overlap another confirmed booking or closed dates. Unpaid 24-hour holds on the new dates are released (first come, first served).</small>
+          <small className="ops-hint">Refused if the new dates overlap another confirmed booking or closed dates. Unpaid walk-in vouchers on the new dates are released (first come, first served).</small>
           {error && <p className="admin-error" role="alert">{error}</p>}
           <button type="submit" className="walkin-submit-button" disabled={busy || checkInDate === booking.checkInDate}>
             <CalendarClock size={15} /> {busy ? 'Rescheduling…' : 'Move booking'}

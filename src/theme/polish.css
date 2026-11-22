@@ -716,3 +716,18 @@
 @media (prefers-reduced-motion: reduce) {
   :root .estimate-option:hover { translate: none; }
 }
+
+/* Booking estimate before a stay is chosen */
+.estimate-empty {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.estimate-empty svg {
+  flex: none;
+}

@@ -40,11 +40,11 @@ Tour packages:
 Payment options (2-tier payment hierarchy):
 - **Tier 1: Online GCash Reservation.** The guest signs in on the website, picks dates and an accommodation, and pays a **50% deposit through secure online GCash checkout**. This secures and blocks the date in advance. A small online payment/convenience fee is shown at checkout. The remaining **50% is paid in cash at check-in**. The booking is confirmed only after the payment is verified.
 - **Tier 2: Walk-In / No Reservation.** **100% cash upon arrival**, subject to same-day availability. Walk-ins do not lock a date in advance, and are not possible on dates when the whole resort is exclusively booked.
-- **24-hour pending hold (pay cash later).** A signed-in guest who isn't paying online yet can place a free heads-up hold from the checkout screen, then pay in cash at the resort within 24 hours. A hold does **not** reserve the date, and it expires automatically after 24 hours.
+- **Walk-in voucher (pay cash later).** A signed-in guest who isn't paying online yet can get a free walk-in voucher from the checkout screen, then pay in cash at the resort on or before the check-in date. A voucher does **not** reserve the date, and it expires automatically after the check-in date.
 
 FIRST COME, FIRST SERVED (always explain this when guests ask about reserving, holds, or availability)
 - A date stays open to everyone until a booking is **confirmed**: by a verified 50% GCash deposit, or by cash received at the resort.
-- Inquiries, unfinished GCash checkouts, and 24-hour holds do **not** reserve a date. Several guests can hold the same date; the first booking to be confirmed gets it, and the other holds are released.
+- Inquiries, unfinished GCash checkouts, and walk-in vouchers do **not** reserve a date. Several guests can hold the same date; the first booking to be confirmed gets it, and the other holds are released.
 - The fastest way to secure a date is the 50% GCash deposit, which confirms the booking as soon as the payment is verified.
 
 HOW TO BOOK

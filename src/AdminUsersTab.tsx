@@ -8,7 +8,7 @@ import './AdminUsersTab.css'
 const outcomeLabels: Record<BookingOutcome, string> = {
   SUCCESSFUL: 'Successful',
   FAILED: 'Failed / expired',
-  PENDING_HOLD: '24-hr hold',
+  PENDING_HOLD: 'Walk-in voucher',
   IN_PROGRESS: 'In progress',
 }
 
@@ -17,7 +17,7 @@ const statusLabels: Record<string, string> = {
   CONFIRMED: 'Confirmed',
   CANCELLED: 'Cancelled by admin',
   DATE_UNAVAILABLE: 'Paid · dates taken (refund review)',
-  PENDING_HOLD: '24-hour hold',
+  PENDING_HOLD: 'Walk-in voucher',
   EXPIRED: 'Hold expired',
   CANCELLED_BY_GCASH_PRIORITY: 'Released · confirmed for another guest',
 }
@@ -245,7 +245,7 @@ export default function AdminUsersTab({ users, loading, error, token, currentUse
                     <td data-label="Successful"><span className="count-badge is-success">{user.successfulBookings}</span></td>
                     <td data-label="Failed / expired">
                       <span className={`count-badge ${user.failedOrExpiredBookings ? 'is-failed' : 'is-zero'}`}>{user.failedOrExpiredBookings}</span>
-                      {user.pendingHolds > 0 && <Tooltip label="Active 24-hour holds"><span className="count-badge is-hold" tabIndex={0}><Hourglass size={10} /> {user.pendingHolds}</span></Tooltip>}
+                      {user.pendingHolds > 0 && <Tooltip label="Active walk-in vouchers"><span className="count-badge is-hold" tabIndex={0}><Hourglass size={10} /> {user.pendingHolds}</span></Tooltip>}
                     </td>
                     <td className="users-actions">
                       <button type="button" className="users-secondary-button" onClick={() => setHistoryUserId(user.id)}><History size={13} /> View History</button>

@@ -23,8 +23,10 @@ export type PaymentMethod = 'GCASH' | 'MAYA' | 'BANK_TRANSFER' | 'OTHER' | 'CASH
 export type TourType = 'OVERNIGHT' | 'DAY_TOUR' | 'NIGHT_TOUR'
 export type PaymentTier = 'ONLINE_GCASH_RESERVATION' | 'WALKIN_CASH_NO_RESERVATION' | 'PENDING_CASH_INQUIRY'
 
-/** A pending cash hold lasts this long before it expires automatically. */
-export const PENDING_HOLD_DURATION_MS = 24 * 60 * 60 * 1000
+/** A walk-in voucher stays valid through the end of its check-in date, Philippine time. */
+export const voucherExpiresAt = (checkInDate: string) => new Date(`${checkInDate}T23:59:59.999+08:00`)
+/** An unpaid GCash checkout is treated as abandoned after this many hours. */
+export const ABANDONED_CHECKOUT_HOURS = 2
 /** Active (unexpired) holds one account may have at once, so no one can tie up every date. */
 export const MAX_ACTIVE_HOLDS_PER_USER = 2
 
@@ -142,7 +144,7 @@ function blockedForBookingSelect(alias: string) {
 
 /**
  * First come, first served: dates belong to whichever booking is CONFIRMED first.
- * Once a booking is confirmed, every unpaid 24-hour hold on overlapping dates is released
+ * Once a booking is confirmed, every unpaid walk-in voucher on overlapping dates is released
  * (status CANCELLED_BY_GCASH_PRIORITY, shown as "Released · confirmed for another guest first").
  * Call inside the confirming transaction; it does nothing unless the booking is CONFIRMED.
  */
@@ -513,15 +515,24 @@ export async function cancelUnpaidGcashReservation(referenceNumber: string) {
   )
 }
 
-/** Marks every pending cash hold past its 24-hour window as EXPIRED. Returns how many expired. */
+/** Marks every pending cash hold past its check-in date as EXPIRED. Returns how many expired. */
 export async function expirePendingHolds() {
   await ensureUserSchema()
-  const result = await getPool().query(
+  const holds = await getPool().query(
     `UPDATE bookings
      SET status = 'EXPIRED', payment_status = 'NOT_PAID'
      WHERE status = 'PENDING_HOLD' AND expires_at <= clock_timestamp()`,
   )
-  return result.rowCount ?? 0
+  // Unfinished GCash checkouts. A late payment is still recorded by recordGatewayPayment.
+  const checkouts = await getPool().query(
+    `UPDATE bookings
+     SET status = 'EXPIRED', payment_status = 'NOT_PAID'
+     WHERE status = 'PENDING' AND payment_status = 'UNPAID'
+       AND payment_tier = 'ONLINE_GCASH_RESERVATION' AND gateway_payment_id IS NULL
+       AND created_at <= clock_timestamp() - ($1::int * interval '1 hour')`,
+    [ABANDONED_CHECKOUT_HOURS],
+  )
+  return (holds.rowCount ?? 0) + (checkouts.rowCount ?? 0)
 }
 
 /** Whether an unexpired pending cash hold overlaps the requested stay. */
@@ -543,7 +554,7 @@ export type PendingHoldResult =
   | { ok: false, reason: 'DATE_CONFIRMED' | 'DATE_BLOCKED' | 'ALREADY_HELD' | 'HOLD_LIMIT' }
 
 /**
- * Creates a Priority #2 "reserve now, pay cash later" hold that expires after 24 hours.
+ * Creates a Priority #2 "reserve now, pay cash later" hold that expires after its check-in date.
  * Runs under the same advisory lock as payment confirmations so a hold and a GCash
  * confirmation for the same slot are always decided one after the other.
  */
@@ -620,14 +631,14 @@ export async function createPendingHold(input: {
          $1, $2, $3, $4, $5, 'PENDING_CASH_INQUIRY',
          $6, $7, 0, 0, $6, ($8::text[])[1], $9, $10, $11, $12, $13, $14, $15, $16,
          $6, $7, 0, 'PENDING_HOLD', 'UNPAID', $5, 2,
-         clock_timestamp() + ($17::bigint * interval '1 millisecond'), $8::text[], $18
+         $17::timestamptz, $8::text[], $18
        )
        RETURNING expires_at`,
       [
         input.id, input.userId, input.customerName, input.customerEmail, input.referenceNumber,
         input.baseResortPrice, input.baseDepositAmount, input.accommodationIds, input.accommodationName,
         input.tourType, input.checkInDate, input.checkOutDate, input.adults, input.seniorsPwd,
-        input.children, input.guestCount, PENDING_HOLD_DURATION_MS, input.extraGuests ? JSON.stringify(input.extraGuests) : null,
+        input.children, input.guestCount, voucherExpiresAt(input.checkInDate), input.extraGuests ? JSON.stringify(input.extraGuests) : null,
       ],
     )
     await client.query('COMMIT')
@@ -823,8 +834,9 @@ export async function recordGatewayPayment(input: {
     }
     if (
       booking.gateway_payment_id ||
-      booking.status !== 'PENDING' ||
-      booking.payment_status !== 'UNPAID' ||
+      // An expired checkout can still be paid late: the guest's money must always be recorded.
+      !((booking.status === 'PENDING' && booking.payment_status === 'UNPAID') ||
+        (booking.status === 'EXPIRED' && booking.payment_status === 'NOT_PAID')) ||
       Math.round(Number(booking.total_online_paid) * 100) !== Math.round(input.amount * 100)
     ) {
       await client.query('ROLLBACK')
@@ -1347,7 +1359,7 @@ export type RescheduleResult =
 /**
  * Moves a confirmed booking to a new check-in date, keeping its length of stay, reference
  * number, price, and payment history. Refused if the new dates conflict with another
- * confirmed booking or blocked dates. Overlapping 24-hour holds are released (first come,
+ * confirmed booking or blocked dates. Overlapping walk-in vouchers are released (first come,
  * first served), exactly as when a booking is confirmed.
  */
 export async function rescheduleBooking(bookingId: string, newCheckInDate: string): Promise<RescheduleResult> {

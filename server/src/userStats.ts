@@ -35,7 +35,7 @@ const failedStatuses = new Set(['EXPIRED', 'CANCELLED', 'CANCELLED_BY_GCASH_PRIO
 /**
  * Successful: CONFIRMED, or fully PAID. Failed / expired: EXPIRED, CANCELLED, or released by
  * another guest's confirmation, or a payment that wasn't received (NOT_PAID — this app's
- * "failed payment" state). Pending hold: an unexpired 24-hour hold. Everything else
+ * "failed payment" state). Pending hold: an unexpired walk-in voucher. Everything else
  * (an inquiry awaiting payment, a payment under review, a paid booking whose dates were
  * taken) is in progress.
  */

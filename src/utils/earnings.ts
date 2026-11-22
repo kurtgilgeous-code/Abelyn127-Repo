@@ -5,7 +5,7 @@ import type { Booking, BookingPayment } from '../data/bookings'
  * - Only payments marked RECEIVED count, in the month they were verified (Philippine time).
  * - Tier 1 GCash (HitPay) payments include the separately itemized online gateway fee;
  *   that fee is passed through to the gateway, so resort earnings = amount − fee.
- * - Cash (walk-ins, confirmed 24-hour holds, balances collected at check-in) counts in full.
+ * - Cash (walk-ins, confirmed walk-in vouchers, balances collected at check-in) counts in full.
  * - Verified manual transfers (screenshot-reviewed GCash / Maya / bank) count in full.
  * - Money received on bookings that are DATE_UNAVAILABLE or CANCELLED is held for refund
  *   review and kept out of earnings until the admin settles it.

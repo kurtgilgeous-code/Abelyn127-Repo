@@ -15,6 +15,7 @@ import {
   Hourglass,
   LayoutDashboard,
   LogOut,
+  Menu,
   Plus,
   Search,
   ShieldAlert,
@@ -54,6 +55,7 @@ type Queue =
   | 'DP_TO_VERIFY'
   | 'DP_BALANCE_DUE'
   | 'DP_REFUND'
+  | 'DP_ABANDONED'
   | 'FP_PENDING'
   | 'FP_CONFIRMED'
   | 'FP_CANCELLED'
@@ -70,7 +72,7 @@ type QueueGroup = 'ALL' | 'HOLDS' | 'DOWN_PAYMENTS' | 'FULL_PAYMENT' | 'WALKIN_C
 const queueTabs: Record<QueueGroup, { id: Queue; label: string }[]> = {
   ALL: [{ id: 'ALL_INQUIRIES', label: 'All Inquiries' }],
   HOLDS: [
-    { id: 'HOLD_ACTIVE', label: 'Active 24-hr holds' },
+    { id: 'HOLD_ACTIVE', label: 'Active walk-in vouchers' },
     { id: 'HOLD_CONFIRMED', label: 'Confirmed · cash paid' },
     { id: 'HOLD_EXPIRED', label: 'Expired' },
     { id: 'HOLD_SUPERSEDED', label: 'Released · confirmed for another guest' },
@@ -81,6 +83,7 @@ const queueTabs: Record<QueueGroup, { id: Queue; label: string }[]> = {
     { id: 'DP_TO_VERIFY', label: 'To verify' },
     { id: 'DP_BALANCE_DUE', label: 'Balance due' },
     { id: 'DP_REFUND', label: 'Refund follow-up' },
+    { id: 'DP_ABANDONED', label: 'Unfinished checkouts' },
   ],
   FULL_PAYMENT: [
     { id: 'FP_PENDING', label: 'Pending Full Payment' },
@@ -154,7 +157,9 @@ function queueMatches(booking: Booking, queue: Queue) {
       // A hold the admin confirmed with cash keeps its original TRP-HOLD reference.
       return Boolean(booking.holdReferenceNumber)
     case 'HOLD_EXPIRED':
-      return booking.status === 'EXPIRED'
+      return booking.status === 'EXPIRED' && booking.paymentTier !== 'ONLINE_GCASH_RESERVATION'
+    case 'DP_ABANDONED':
+      return booking.status === 'EXPIRED' && booking.paymentTier === 'ONLINE_GCASH_RESERVATION'
     case 'HOLD_SUPERSEDED':
       return booking.status === 'CANCELLED_BY_GCASH_PRIORITY'
     case 'HOLD_CANCELLED':
@@ -186,7 +191,7 @@ function queueMatches(booking: Booking, queue: Queue) {
     case 'FP_DATE_UNAVAILABLE':
       return booking.status === 'DATE_UNAVAILABLE' && isFullPaymentBooking(booking)
     case 'CASH_WALKIN':
-      // Same-day walk-ins only; confirmed holds are listed under 24-Hr Holds.
+      // Same-day walk-ins only; confirmed holds are listed under Walk-In Vouchers.
       return booking.paymentTier === 'WALKIN_CASH_NO_RESERVATION' && !booking.holdReferenceNumber
   }
 }
@@ -225,7 +230,7 @@ function paymentLabel(booking: Booking) {
 
 function statusLabel(status: BookingStatus) {
   if (status === 'PENDING') return 'Needs review'
-  if (status === 'PENDING_HOLD') return '24-HR HEADS-UP HOLD'
+  if (status === 'PENDING_HOLD') return 'WALK-IN VOUCHER'
   if (status === 'EXPIRED') return 'EXPIRED'
   if (status === 'CANCELLED_BY_GCASH_PRIORITY') return 'Released · confirmed for another guest'
   if (status === 'CONFIRMED') return 'Confirmed'
@@ -290,6 +295,20 @@ function AdminPage() {
   const [search, setSearch] = useState('')
   const [storageError, setStorageError] = useState('')
   const [activeNav, setActiveNav] = useState('Inquiries')
+  const [sideNavOpen, setSideNavOpen] = useState(false)
+
+  // Phone side menu: Escape closes it, and the page behind it doesn't scroll.
+  useEffect(() => {
+    if (!sideNavOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSideNavOpen(false) }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [sideNavOpen])
   const [cashAmounts, setCashAmounts] = useState<Record<string, string>>({})
   const [now, setNow] = useState(0)
   const [showWalkIn, setShowWalkIn] = useState(false)
@@ -424,7 +443,7 @@ function AdminPage() {
       ? `\n\n${formatPeso(booking.paidAmount)} already received will move to "Held for refund review" on the Earnings page.`
       : ''
     const confirmed = window.confirm(
-      `Cancel ${isHold ? 'this 24-hour hold' : 'this booking'} for ${booking.customerName} (${booking.accommodationName}, ${booking.checkInDate})?\n\nThe dates become available to other guests right away.${received}`,
+      `Cancel ${isHold ? 'this walk-in voucher' : 'this booking'} for ${booking.customerName} (${booking.accommodationName}, ${booking.checkInDate})?\n\nThe dates become available to other guests right away.${received}`,
     )
     if (confirmed) void updateBooking(booking.id, { status: 'CANCELLED' })
   }
@@ -456,7 +475,7 @@ function AdminPage() {
 
   const confirmHoldCash = async (booking: Booking) => {
     const confirmed = window.confirm(
-      `Confirm that ${booking.customerName} paid ${formatPeso(booking.baseResortPrice)} in cash for ${booking.accommodationName}? This converts the 24-hour hold into a confirmed cash booking.`,
+      `Confirm that ${booking.customerName} paid ${formatPeso(booking.baseResortPrice)} in cash for ${booking.accommodationName}? This converts the walk-in voucher into a confirmed cash booking.`,
     )
     if (!confirmed) return
     setConfirmingHoldId(booking.id)
@@ -549,7 +568,7 @@ function AdminPage() {
           booking.gatewayPaymentId ?? '',
         ].some((value) => value.toLowerCase().includes(query)),
       )
-      // Priority #1 (GCash / confirmed) before Priority #2 (24-hr holds), then by check-in date.
+      // Priority #1 (GCash / confirmed) before Priority #2 (walk-in vouchers), then by check-in date.
       .sort((a, b) =>
         sortRank(a) - sortRank(b) ||
         a.checkInDate.localeCompare(b.checkInDate) ||
@@ -564,13 +583,15 @@ function AdminPage() {
 
   return (
     <div className="admin-shell">
-      <aside className="admin-sidebar">
+      {sideNavOpen && <button type="button" className="admin-side-backdrop" aria-label="Close menu" onClick={() => setSideNavOpen(false)} />}
+      <aside id="admin-side-menu" className={`admin-sidebar${sideNavOpen ? ' is-open' : ''}`}>
+        <button type="button" className="admin-side-close" aria-label="Close menu" onClick={() => setSideNavOpen(false)}><X size={20} /></button>
         <a className="admin-brand admin-brand-logo" href="/" aria-label="Back to Tampisawan customer page">
           <ResortLogo className="resort-logo-admin" />
           <small>RESORT ADMIN</small>
         </a>
         <div className="admin-sidebar-label">WORKSPACE</div>
-        <nav className="admin-nav" aria-label="Admin navigation">
+        <nav className="admin-nav" aria-label="Admin navigation" onClick={() => setSideNavOpen(false)}>
           <a className={activeNav === 'Overview' ? 'active' : ''} href="#overview" onClick={() => setActiveNav('Overview')}><LayoutDashboard size={17} /> Overview</a>
           <a className={activeNav === 'Inquiries' ? 'active' : ''} href="#inquiries" onClick={() => { setQueueGroup('ALL'); setQueue('ALL_INQUIRIES'); setActiveNav('Inquiries') }}><ClipboardList size={17} /> Inquiries <span>{counts.allInquiries}</span></a>
           <a className={activeNav === 'Payments' ? 'active' : ''} href="#inquiries" onClick={() => { setQueueGroup('DOWN_PAYMENTS'); setQueue('DP_TO_VERIFY'); setActiveNav('Payments') }}><CreditCard size={17} /> Payments</a>
@@ -585,6 +606,7 @@ function AdminPage() {
 
       <main className="admin-main">
         <header className="admin-topbar">
+          <button type="button" className="admin-menu-button" aria-label="Open menu" aria-controls="admin-side-menu" aria-expanded={sideNavOpen} onClick={() => setSideNavOpen(true)}><Menu size={22} /></button>
           <div className="admin-breadcrumb"><span>Workspace</span><span>/</span><b>{activeNav}</b></div>
           <a href="/" className="customer-link"><ArrowLeft size={15} /> Customer view <ArrowUpRight size={14} /></a>
         </header>
@@ -619,7 +641,7 @@ function AdminPage() {
             </div>
           </div>
 
-          <div className="admin-demo-banner"><ShieldAlert size={17} /><span><b>First come, first served:</b> dates stay open until a booking is confirmed, by a verified GCash deposit, cash you record, a walk-in, or a verified payment proof. Inquiries and 24-hour holds don't reserve dates; when a booking is confirmed, overlapping holds are released automatically.</span></div>
+          <div className="admin-demo-banner"><ShieldAlert size={17} /><span><b>First come, first served:</b> dates stay open until a booking is confirmed, by a verified GCash deposit, cash you record, a walk-in, or a verified payment proof. Inquiries and walk-in vouchers don't reserve dates; when a booking is confirmed, overlapping holds are released automatically.</span></div>
           {counts.activeHolds > 0 && (
             <button type="button" className="admin-hold-banner" onClick={() => { setQueueGroup('HOLDS'); setQueue('HOLD_ACTIVE'); setActiveNav('Inquiries') }}>
               <Hourglass size={16} />
@@ -641,7 +663,7 @@ function AdminPage() {
                 All Inquiries <span>{counts.allInquiries}</span>
               </button>
               <button type="button" role="tab" aria-selected={queueGroup === 'HOLDS'} className={queueGroup === 'HOLDS' ? 'active' : ''} onClick={() => { setQueueGroup('HOLDS'); setQueue('HOLD_ACTIVE') }}>
-                24-Hr Holds <span>{counts.holds}</span>
+                Walk-In Vouchers <span>{counts.holds}</span>
               </button>
               <button type="button" role="tab" aria-selected={queueGroup === 'DOWN_PAYMENTS'} className={queueGroup === 'DOWN_PAYMENTS' ? 'active' : ''} onClick={() => { setQueueGroup('DOWN_PAYMENTS'); setQueue('DP_TO_VERIFY') }}>
                 DownPayments <span>{counts.downPayments}</span>
@@ -666,7 +688,7 @@ function AdminPage() {
 
           <section className="inquiries-panel" id="inquiries">
             <div className="inquiries-heading">
-              <div><h2>{queueHeading(queue)}</h2><p>{queue === 'ALL_INQUIRIES' ? 'Pending inquiries and 24-hour cash holds, with Priority #1 GCash reservations first, then by check-in date.' : queue === 'HOLD_ACTIVE' ? 'Heads-up holds from guests planning to pay cash. They do not reserve the dates: several guests may hold the same dates, and the first booking confirmed gets them. Holds expire after 24 hours.' : queue === 'HOLD_CONFIRMED' ? 'Holds whose guests paid the full rate in cash before the 24 hours ran out. Each now has a TRP-CASH reference.' : queue === 'HOLD_CANCELLED' ? 'Holds cancelled by an admin before payment. Their dates were released.' : queue === 'HOLD_EXPIRED' ? 'Holds that passed 24 hours without payment. Their dates were released.' : queue === 'HOLD_SUPERSEDED' ? 'Unpaid holds released automatically because another booking for the same dates was confirmed first (GCash deposit, cash, walk-in, or verified payment).' : queue === 'CASH_WALKIN' ? 'Same-day walk-ins confirmed after full cash payment; gateway fees are zero. Confirmed cash holds are under 24-Hr Holds.' : queue === 'DP_TO_VERIFY' ? 'Downpayment and balance payment proofs waiting for you to confirm they were received.' : queue === 'DP_BALANCE_DUE' ? 'Confirmed stays with a cash balance still to collect, earliest check-in first. Record the cash when you receive it.' : queue === 'DP_REFUND' || queue === 'FP_DATE_UNAVAILABLE' ? 'Payment was received after another booking secured these dates. Contact the customer to arrange a refund or discuss alternatives.' : queue === 'FP_PENDING' ? 'Full-payment proofs awaiting admin verification.' : queue === 'FP_CONFIRMED' ? 'Initial full payments confirmed as received by an admin.' : 'Full-payment bookings cancelled or marked not received.'}</p></div>
+              <div><h2>{queueHeading(queue)}</h2><p>{queue === 'ALL_INQUIRIES' ? 'Pending inquiries and walk-in vouchers, with Priority #1 GCash reservations first, then by check-in date.' : queue === 'HOLD_ACTIVE' ? 'Heads-up holds from guests planning to pay cash. They do not reserve the dates: several guests may hold the same dates, and the first booking confirmed gets them. Vouchers expire after the check-in date.' : queue === 'HOLD_CONFIRMED' ? 'Holds whose guests paid the full rate in cash before the voucher expired. Each now has a TRP-CASH reference.' : queue === 'HOLD_CANCELLED' ? 'Holds cancelled by an admin before payment. Their dates were released.' : queue === 'HOLD_EXPIRED' ? 'Vouchers that passed their check-in date without payment. Their dates were released.' : queue === 'HOLD_SUPERSEDED' ? 'Unpaid holds released automatically because another booking for the same dates was confirmed first (GCash deposit, cash, walk-in, or verified payment).' : queue === 'CASH_WALKIN' ? 'Same-day walk-ins confirmed after full cash payment; gateway fees are zero. Confirmed cash holds are under Walk-In Vouchers.' : queue === 'DP_ABANDONED' ? 'GCash checkouts not paid within 2 hours. No money was received and the dates stayed open. If the guest pays late, the booking updates automatically.' : queue === 'DP_TO_VERIFY' ? 'Downpayment and balance payment proofs waiting for you to confirm they were received.' : queue === 'DP_BALANCE_DUE' ? 'Confirmed stays with a cash balance still to collect, earliest check-in first. Record the cash when you receive it.' : queue === 'DP_REFUND' || queue === 'FP_DATE_UNAVAILABLE' ? 'Payment was received after another booking secured these dates. Contact the customer to arrange a refund or discuss alternatives.' : queue === 'FP_PENDING' ? 'Full-payment proofs awaiting admin verification.' : queue === 'FP_CONFIRMED' ? 'Initial full payments confirmed as received by an admin.' : 'Full-payment bookings cancelled or marked not received.'}</p></div>
               <div className="inquiry-search"><Search size={16} /><input aria-label="Search inquiries" placeholder="Search name, stay, or reference" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
             </div>
             {visibleBookings.length === 0 ? (
@@ -690,7 +712,7 @@ function AdminPage() {
                           const left = holdMillisecondsLeft(booking.expiresAt, now)
                           return left > 0 ? (
                             <>
-                              <span className="status-badge status-pending_hold"><Hourglass size={12} /> 24-HR HEADS-UP HOLD</span>
+                              <span className="status-badge status-pending_hold"><Hourglass size={12} /> WALK-IN VOUCHER</span>
                               <span className="hold-expiry-badge">Expires in {formatHoldTimeLeft(left)}</span>
                             </>
                           ) : <span className="status-badge status-expired">EXPIRED</span>
@@ -704,7 +726,7 @@ function AdminPage() {
                     </div>
                     <div className="admin-booking-details">
                       <div><small>REFERENCE NO.</small><b>{booking.referenceNumber}</b></div>
-                      <div><small>PAYMENT TIER</small><b>{booking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? '1 · GCash reservation' : booking.paymentTier === 'WALKIN_CASH_NO_RESERVATION' ? booking.holdReferenceNumber ? `Cash · from hold ${booking.holdReferenceNumber}` : '2 · Walk-in cash' : booking.paymentTier === 'PENDING_CASH_INQUIRY' ? '2 · 24-hr pending cash hold' : 'Manual / legacy'}</b></div>
+                      <div><small>PAYMENT TIER</small><b>{booking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? '1 · GCash reservation' : booking.paymentTier === 'WALKIN_CASH_NO_RESERVATION' ? booking.holdReferenceNumber ? `Cash · from hold ${booking.holdReferenceNumber}` : '2 · Walk-in cash' : booking.paymentTier === 'PENDING_CASH_INQUIRY' ? '2 · Walk-in voucher' : 'Manual / legacy'}</b></div>
                       <div><small>NET RESORT EARNINGS</small><b>{formatPeso(booking.baseResortPrice)}</b></div>
                       <div><small>SEPARATED GATEWAY FEE</small><b>{formatPeso(booking.gatewayFeeAmount)}</b></div>
                       <div><small>HITPAY TXN ID</small><b>{booking.gatewayPaymentId ?? '—'}</b></div>
@@ -773,10 +795,10 @@ function AdminPage() {
                             <button className="action-decline" type="button" onClick={() => cancelBooking(booking)}><X size={14} /> Cancel hold</button>
                           </>
                         ) : (
-                          <span className="action-hint">This hold passed 24 hours without payment and is being released.</span>
+                          <span className="action-hint">This voucher passed its check-in date without payment and is being released.</span>
                         )
                       ) : booking.status === 'EXPIRED' ? (
-                        <span className="action-hint">Hold expired after 24 hours without payment. The dates were released.</span>
+                        <span className="action-hint">{booking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? 'GCash checkout not finished. No payment was received.' : 'Voucher expired after the check-in date without payment. The dates were released.'}</span>
                       ) : booking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? (
                         <span className="action-hint">Released automatically: another booking for these dates was confirmed first.</span>
                       ) : booking.status === 'DATE_UNAVAILABLE' ? (

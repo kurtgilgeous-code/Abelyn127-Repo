@@ -235,11 +235,11 @@ export async function createGcashCheckout(request: AuthenticatedRequest, respons
 export const holdRefusalMessages = {
   DATE_CONFIRMED: 'These dates were already secured by a confirmed booking. Please choose another date or accommodation.',
   DATE_BLOCKED: 'The resort has closed these dates (maintenance or private use). Please choose another date or accommodation.',
-  ALREADY_HELD: 'You already have an active 24-hour hold on these dates. Pay in cash at the resort, or secure them now with the GCash deposit.',
-  HOLD_LIMIT: `You can have up to ${MAX_ACTIVE_HOLDS_PER_USER} active 24-hour holds at a time. Wait for one to expire, or secure a date with the GCash deposit.`,
+  ALREADY_HELD: 'You already have an active walk-in voucher for these dates. Pay in cash at the resort, or secure them now with the GCash deposit.',
+  HOLD_LIMIT: `You can have up to ${MAX_ACTIVE_HOLDS_PER_USER} active walk-in vouchers at a time. Wait for one to expire, or secure a date with the GCash deposit.`,
 } as const
 
-/** POST /api/bookings/pending-hold — Priority #2 "reserve now, pay cash later" 24-hour hold. */
+/** POST /api/bookings/pending-hold — Priority #2 "reserve now, pay cash later" walk-in voucher. */
 export async function createPendingHoldBooking(request: AuthenticatedRequest, response: Response) {
   const user = request.authUser
   if (!user?.id) {
@@ -302,11 +302,11 @@ export async function confirmHoldWithCash(request: AuthenticatedRequest, respons
       } else if (result === 'NOT_FOUND') {
         response.status(404).json({ message: 'Booking not found.' })
       } else if (result === 'EXPIRED') {
-        response.status(409).json({ message: 'This 24-hour hold has already expired. Ask the guest to book again.' })
+        response.status(409).json({ message: 'This walk-in voucher has already expired. Ask the guest to book again.' })
       } else if (result === 'DATE_TAKEN') {
         response.status(409).json({ message: 'These dates were already secured by a confirmed booking, so this hold cannot be confirmed.' })
       } else {
-        response.status(409).json({ message: 'Only an active 24-hour pending hold can be confirmed this way.' })
+        response.status(409).json({ message: 'Only an active walk-in voucher can be confirmed this way.' })
       }
       return
     } catch (error) {

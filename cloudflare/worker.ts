@@ -105,8 +105,10 @@ const paymentMethods: PaymentMethod[] = ['GCASH', 'MAYA', 'BANK_TRANSFER', 'OTHE
 const bookingStatuses: BookingStatus[] = ['PENDING', 'CANCELLED']
 const tourTypes: TourType[] = ['OVERNIGHT', 'DAY_TOUR', 'NIGHT_TOUR']
 
-/** A pending cash hold lasts this long before it expires automatically. */
-const PENDING_HOLD_DURATION_MS = 24 * 60 * 60 * 1000
+/** A walk-in voucher stays valid through the end of its check-in date, Philippine time. */
+const voucherExpiresAt = (checkInDate: string) => new Date(`${checkInDate}T23:59:59.999+08:00`)
+/** An unpaid GCash checkout is treated as abandoned after this many hours. */
+const ABANDONED_CHECKOUT_HOURS = 2
 /** Active (unexpired) holds one account may have at once, so no one can tie up every date. */
 const MAX_ACTIVE_HOLDS_PER_USER = 2
 /** Statuses in which a booking can no longer take payments through the normal payment flows. */
@@ -830,7 +832,7 @@ function rowsOverlapSql(a: string, b: string) {
 /**
  * First come, first served: dates belong to whichever booking is CONFIRMED first.
  * Added to every confirming batch (same transaction): once the booking is confirmed, every
- * unpaid 24-hour hold on overlapping dates is released. Does nothing unless it is CONFIRMED.
+ * unpaid walk-in voucher on overlapping dates is released. Does nothing unless it is CONFIRMED.
  */
 function releaseOverlappingHolds(env: Env, bookingId: string) {
   return env.DB.prepare(`
@@ -1018,23 +1020,32 @@ async function rescheduleBooking(request: Request, env: Env, bookingId: string) 
   return json({ message: 'Booking rescheduled. Its reference number and payments are unchanged.', ok: true, checkInDate, checkOutDate })
 }
 
-/** Marks every pending cash hold past its 24-hour window as EXPIRED. Returns how many expired. */
+/** Marks every pending cash hold past its check-in date as EXPIRED. Returns how many expired. */
 async function expirePendingHolds(env: Env) {
-  const result = await env.DB.prepare(`
-    UPDATE bookings SET status = 'EXPIRED', payment_status = 'NOT_PAID'
-    WHERE status = 'PENDING_HOLD' AND expires_at <= ?
-  `).bind(new Date().toISOString()).run()
-  return result.meta.changes ?? 0
+  const [holds, checkouts] = await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE bookings SET status = 'EXPIRED', payment_status = 'NOT_PAID'
+      WHERE status = 'PENDING_HOLD' AND expires_at <= ?
+    `).bind(new Date().toISOString()),
+    // Unfinished GCash checkouts. A late payment is still recorded by recordGatewayPayment.
+    env.DB.prepare(`
+      UPDATE bookings SET status = 'EXPIRED', payment_status = 'NOT_PAID'
+      WHERE status = 'PENDING' AND payment_status = 'UNPAID'
+        AND payment_tier = 'ONLINE_GCASH_RESERVATION' AND gateway_payment_id IS NULL
+        AND julianday(created_at) <= julianday('now', ?)
+    `).bind(`-${ABANDONED_CHECKOUT_HOURS} hours`),
+  ])
+  return (holds?.meta.changes ?? 0) + (checkouts?.meta.changes ?? 0)
 }
 
 const holdRefusalMessages = {
   DATE_CONFIRMED: 'These dates were already secured by a confirmed booking. Please choose another date or accommodation.',
   DATE_BLOCKED: 'The resort has closed these dates (maintenance or private use). Please choose another date or accommodation.',
-  ALREADY_HELD: 'You already have an active 24-hour hold on these dates. Pay in cash at the resort, or secure them now with the GCash deposit.',
-  HOLD_LIMIT: `You can have up to ${MAX_ACTIVE_HOLDS_PER_USER} active 24-hour holds at a time. Wait for one to expire, or secure a date with the GCash deposit.`,
+  ALREADY_HELD: 'You already have an active walk-in voucher for these dates. Pay in cash at the resort, or secure them now with the GCash deposit.',
+  HOLD_LIMIT: `You can have up to ${MAX_ACTIVE_HOLDS_PER_USER} active walk-in vouchers at a time. Wait for one to expire, or secure a date with the GCash deposit.`,
 } as const
 
-/** POST /api/bookings/pending-hold — Priority #2 "reserve now, pay cash later" 24-hour hold. */
+/** POST /api/bookings/pending-hold — Priority #2 "reserve now, pay cash later" walk-in voucher. */
 async function createPendingHold(request: Request, env: Env, user: AuthUser) {
   const parsed = await readJson(request)
   if (parsed.tooLarge) return json({ message: 'Request body must be 10 KB or smaller.' }, 413)
@@ -1048,7 +1059,7 @@ async function createPendingHold(request: Request, env: Env, user: AuthUser) {
   await expirePendingHolds(env)
   const now = new Date()
   const nowIso = now.toISOString()
-  const expiresAt = new Date(now.getTime() + PENDING_HOLD_DURATION_MS).toISOString()
+  const expiresAt = voucherExpiresAt(booking.checkInDate).toISOString()
   const bookingId = `TS-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -1166,12 +1177,12 @@ async function confirmHoldWithCash(env: Env, bookingId: string) {
     if (!row) return json({ message: 'Booking not found.' }, 404)
     if (row.status === 'EXPIRED' || (row.status === 'PENDING_HOLD' && row.expires_at && row.expires_at <= nowIso)) {
       await expirePendingHolds(env)
-      return json({ message: 'This 24-hour hold has already expired. Ask the guest to book again.' }, 409)
+      return json({ message: 'This walk-in voucher has already expired. Ask the guest to book again.' }, 409)
     }
     if (row.status === 'PENDING_HOLD') {
       return json({ message: 'These dates were already secured by a confirmed booking or closed by the resort, so this hold cannot be confirmed.' }, 409)
     }
-    return json({ message: 'Only an active 24-hour pending hold can be confirmed this way.' }, 409)
+    return json({ message: 'Only an active walk-in voucher can be confirmed this way.' }, 409)
   }
   return json({ message: 'Could not generate a unique cash reference. Please try again.' }, 503)
 }
@@ -1203,8 +1214,9 @@ async function recordGatewayPayment(
   if (booking.gateway_payment_id === paymentId) return true
   if (
     booking.gateway_payment_id ||
-    booking.payment_status !== 'UNPAID' ||
-    booking.status !== 'PENDING' ||
+    // An expired checkout can still be paid late: the guest's money must always be recorded.
+    !((booking.status === 'PENDING' && booking.payment_status === 'UNPAID') ||
+      (booking.status === 'EXPIRED' && booking.payment_status === 'NOT_PAID')) ||
     Math.round(Number(booking.total_online_paid) * 100) !== amountCents
   ) return false
 
@@ -1226,7 +1238,8 @@ async function recordGatewayPayment(
           gateway_payment_id = ?
       WHERE id = ? AND reference_number = ? AND gateway_checkout_id = ?
         AND payment_tier = 'ONLINE_GCASH_RESERVATION'
-        AND payment_status = 'UNPAID' AND status = 'PENDING'
+        AND ((payment_status = 'UNPAID' AND status = 'PENDING')
+          OR (payment_status = 'NOT_PAID' AND status = 'EXPIRED'))
         AND ROUND(total_online_paid * 100) = ?
         AND gateway_payment_id IS NULL
     `).bind(paymentId, booking.id, reference, checkoutId, amountCents),
@@ -2136,7 +2149,7 @@ export default {
   // even when nobody is browsing; reads of bookings/availability also expire them.
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(expirePendingHolds(env).then((expired) => {
-      if (expired) console.log(`Expired ${expired} pending cash hold(s).`)
+      if (expired) console.log(`Expired ${expired} unpaid voucher(s) or checkout(s).`)
     }))
   },
   async fetch(request: Request, env: Env): Promise<Response> {
