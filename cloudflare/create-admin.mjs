@@ -19,6 +19,7 @@ function askHidden(prompt) {
         if (byte === 3) {
           process.stdin.off('data', handleData)
           process.stdin.setRawMode(false)
+          process.stdin.pause()
           process.stdout.write('\n')
           reject(new Error('Admin setup cancelled.'))
           return
@@ -26,6 +27,7 @@ function askHidden(prompt) {
         if (byte === 13 || byte === 10) {
           process.stdin.off('data', handleData)
           process.stdin.setRawMode(false)
+          process.stdin.pause()
           process.stdout.write('\n')
           resolve(value)
           return
@@ -62,7 +64,7 @@ async function main() {
   if (password !== confirmation) throw new Error('Passwords do not match.')
 
   const salt = randomBytes(16)
-  const hash = await derive(password, salt, iterations, 'sha256')
+  const hash = await derive(password, salt, iterations, 32, 'sha256')
   const passwordHash = `pbkdf2$${iterations}$${salt.toString('base64url')}$${hash.toString('base64url')}`
   const id = randomUUID()
   const statement = `INSERT INTO users (id, full_name, email, username, password_hash, role) VALUES (${sqlString(id)}, ${sqlString(fullName)}, NULL, ${sqlString(username)}, ${sqlString(passwordHash)}, 'ADMIN') ON CONFLICT(username) DO UPDATE SET full_name = excluded.full_name, email = NULL, password_hash = excluded.password_hash, role = 'ADMIN';`
@@ -74,4 +76,4 @@ async function main() {
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : 'Could not prepare the admin SQL.')
   process.exitCode = 1
-})
+}).finally(() => process.stdin.destroy())
