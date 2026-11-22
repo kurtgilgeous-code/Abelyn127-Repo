@@ -331,22 +331,25 @@ function publicUser(row: UserRow): AuthUser {
   }
 }
 
+/** Cloudflare Workers refuse PBKDF2 above 100,000 iterations. */
+const PBKDF2_ITERATIONS = 100_000
+
 async function passwordHash(password: string) {
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
   const derived = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 310_000 },
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERATIONS },
     key,
     256,
   )
-  return `pbkdf2$310000$${bytesToBase64Url(salt)}$${bytesToBase64Url(new Uint8Array(derived))}`
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${bytesToBase64Url(salt)}$${bytesToBase64Url(new Uint8Array(derived))}`
 }
 
 async function verifyPassword(password: string, stored: string) {
   const [algorithm, iterationsValue, saltValue, expectedValue] = stored.split('$')
   const iterations = Number(iterationsValue)
   if (algorithm !== 'pbkdf2' || !Number.isInteger(iterations) || iterations < 100_000 ||
-      iterations > 1_000_000 || !saltValue || !expectedValue) return false
+      iterations > PBKDF2_ITERATIONS || !saltValue || !expectedValue) return false
   try {
     const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
     const actual = new Uint8Array(await crypto.subtle.deriveBits(

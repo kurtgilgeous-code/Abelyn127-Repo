@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline/promises'
 import { promisify } from 'node:util'
 
 const derive = promisify(pbkdf2)
-const iterations = 310_000
+const iterations = 100_000 // the most Cloudflare Workers can verify
 
 function askHidden(prompt) {
   if (!process.stdin.isTTY || !process.stdin.setRawMode) {
