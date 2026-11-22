@@ -3,6 +3,7 @@ import { Printer, X } from 'lucide-react'
 import type { Booking } from './data/bookings'
 import { displayCheckoutDate, tourDetails } from './data/bookings'
 import HoldCountdown from './components/HoldCountdown'
+import BookingPolicyNote from './components/BookingPolicyNote'
 import { accommodations } from './data/accommodations'
 import { calculateBookingTotal, formatPeso, priceAccommodations } from './utils/pricing'
 import ResortLogo from './components/ResortLogo'
@@ -87,7 +88,7 @@ export default function BookingReceiptModal({
         <h2>Stay details</h2>
         <div><span>Guest</span><b>{booking.customerName || 'Guest'}</b></div>
         <div><span>Accommodation</span><b>{booking.accommodationName}</b></div>
-        <div><span>Access highlight</span><b>{isExclusive ? '✨ Exclusive / Solo Use of Entire Resort & Private Pool' : 'Standard Shared-Pool Access'}</b></div>
+        <div><span>Access highlight</span><b>{isExclusive ? '✨ Exclusive Private Stay · booked room only' : 'Standard Shared-Pool Access'}</b></div>
         <div><span>Tour package</span><b>{tourDetails[booking.tourType].label} · {tourDetails[booking.tourType].duration}</b></div>
         <div><span>Dates</span><b>{booking.checkInDate} – {displayCheckoutDate(booking.checkOutDate, booking.tourType)}</b></div>
         <div><span>Guests</span><b>{booking.guestCount}{guestMix && ` (${guestMix})`}</b></div>
@@ -160,8 +161,9 @@ export default function BookingReceiptModal({
         <p className="receipt-pending-note">First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid until the end of your check-in date.</p>
       )}
       {booking.status === 'DATE_UNAVAILABLE' && (
-        <p className="receipt-pending-note">Payment was received after another confirmed booking secured these dates. Contact the resort for refund or alternative-date follow-up.</p>
+        <p className="receipt-pending-note">Payment was received after another confirmed booking secured these dates. Contact the resort to adjust your booking to another available date.</p>
       )}
+      <BookingPolicyNote />
       <footer className="receipt-footer">
         <span>Tampisawan 927 Abelyn&apos;s Private Pool</span>
         <span>Generated {new Date(booking.createdAt).toLocaleString('en-PH')}</span>

@@ -57,7 +57,7 @@ export default function BookingSuccessPage() {
       <main className="booking-success-state" role="alert">
         <h1>Booking reference missing</h1>
         <p>Return to the booking page and open your booking using its reference.</p>
-        <a href="/customer/booking"><ArrowLeft size={15} /> Customer booking</a>
+        <a href="/customer/booking#my-inquiry"><ArrowLeft size={15} /> Customer booking</a>
       </main>
     )
   }
@@ -72,7 +72,7 @@ export default function BookingSuccessPage() {
       <p>HitPay sent the payment result securely. This page will show your official receipt as soon as the server verifies the webhook.</p>
       {booking && <p className="booking-success-substatus">{booking.accommodationName} · {booking.checkInDate}</p>}
       {error && <p className="booking-success-error" role="alert">{error}</p>}
-      <a href="/customer/booking"><ArrowLeft size={15} /> Back to your bookings</a>
+      <a href="/customer/booking#my-inquiry"><ArrowLeft size={15} /> Back to your bookings</a>
     </main>
   )
 }

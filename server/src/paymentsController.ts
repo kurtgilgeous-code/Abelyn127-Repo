@@ -285,7 +285,7 @@ export async function createPendingHoldBooking(request: AuthenticatedRequest, re
 /** POST /api/admin/bookings/:id/confirm-hold-cash — admin received the full cash payment for a hold. */
 export async function confirmHoldWithCash(request: AuthenticatedRequest, response: Response) {
   if (request.authUser?.role !== 'ADMIN') {
-    response.status(403).json({ message: 'Admin access is required to confirm a cash hold.' })
+    response.status(403).json({ message: 'You do not have access to this page.' })
     return
   }
   const bookingId = request.params.id
@@ -321,7 +321,7 @@ export async function createWalkInBooking(request: AuthenticatedRequest, respons
   const details = getBookingDetails(request.body)
   const body = request.body
   if (!adminUserId || request.authUser?.role !== 'ADMIN') {
-    response.status(403).json({ message: 'Admin access is required to record a walk-in booking.' })
+    response.status(403).json({ message: 'You do not have access to this page.' })
     return
   }
   if (!details || !isRecord(body)) {

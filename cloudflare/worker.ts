@@ -1980,7 +1980,7 @@ async function api(request: Request, env: Env): Promise<Response | null> {
 
     if (pathname === '/api/admin/me' && method === 'GET') {
       if (!auth) return json({ message: 'Please sign in to continue.' }, 401)
-      if (auth.role !== 'ADMIN') return json({ message: 'Admin access requires an administrator account.' }, 403)
+      if (auth.role !== 'ADMIN') return json({ message: 'You do not have access to this page.' }, 403)
       return json({ user: auth })
     }
 
@@ -1989,7 +1989,7 @@ async function api(request: Request, env: Env): Promise<Response | null> {
       pathname === '/api/payments/create-gcash-checkout'
     if (needsAuth && !auth) return json({ message: 'Please sign in to continue.' }, 401)
     if (pathname.startsWith('/api/admin/') && auth?.role !== 'ADMIN') {
-      return json({ message: 'Admin access requires an administrator account.' }, 403)
+      return json({ message: 'You do not have access to this page.' }, 403)
     }
 
     if (method === 'POST' && pathname === '/api/bookings' && auth) {
@@ -2081,7 +2081,7 @@ async function api(request: Request, env: Env): Promise<Response | null> {
       }
       if (result === 'DATE_UNAVAILABLE') {
         return json({
-          message: 'Cash was received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact/refund follow-up.',
+          message: 'Cash was received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact to adjust the booking.',
           dateUnavailable: true,
         }, 201)
       }
@@ -2106,7 +2106,7 @@ async function api(request: Request, env: Env): Promise<Response | null> {
       if (!updated) return json({ message: 'This payment is no longer waiting for review.' }, 409)
       if (updated === 'DATE_UNAVAILABLE') {
         return json({
-          message: 'Payment received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact/refund follow-up.',
+          message: 'Payment received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact to adjust the booking.',
           dateUnavailable: true,
         })
       }

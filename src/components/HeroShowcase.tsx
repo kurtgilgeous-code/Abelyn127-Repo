@@ -152,7 +152,7 @@ export default function HeroShowcase({ onSelectStay, onPlanVisit }: HeroShowcase
                       {durationLabel(slide.stay)}
                     </span>
                     {slide.stay.exclusiveWholeResort ? (
-                      <span className="showcase-pill showcase-pill-tier is-gold"><Sparkles size={12} aria-hidden="true" /> Exclusive Solo Resort</span>
+                      <span className="showcase-pill showcase-pill-tier is-gold"><Sparkles size={12} aria-hidden="true" /> Exclusive Private Stay</span>
                     ) : (
                       <span className="showcase-pill showcase-pill-tier is-cobalt"><Waves size={12} aria-hidden="true" /> Shared Pool Access</span>
                     )}

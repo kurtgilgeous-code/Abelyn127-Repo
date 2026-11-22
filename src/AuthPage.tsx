@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { ArrowUpRight, Check, Compass, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, Check, Compass } from 'lucide-react'
 import { useAuth } from './auth/useAuth'
 import ResortLogo from './components/ResortLogo'
 import FallingLeaves from './components/FallingLeaves'
@@ -17,18 +17,20 @@ function AuthPage() {
   const [logoutError, setLogoutError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const continueToRolePage = (role: 'ADMIN' | 'CUSTOMER') => {
+  const destinationFor = (role: 'ADMIN' | 'CUSTOMER') => {
     const params = new URLSearchParams(window.location.search)
     const reference = params.get('reference') ?? ''
-    const destination = role === 'ADMIN'
+    return role === 'ADMIN'
       ? '/admin/dashboard'
       : params.get('next') === 'booking-success' && /^TRP-GCASH-\d{8}-\d{4}$/.test(reference)
         ? `/booking/success?reference=${encodeURIComponent(reference)}`
         : params.get('next') === 'preview'
         ? '/#booking'
+        : params.get('next') === 'my-bookings'
+        ? '/customer/booking#my-inquiry'
         : '/customer/booking'
-    window.location.replace(destination)
   }
+  const continueToRolePage = (role: 'ADMIN' | 'CUSTOMER') => window.location.replace(destinationFor(role))
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -96,7 +98,7 @@ function AuthPage() {
           <div className="signed-in-card">
             <span className="signed-in-check"><Check size={18} /></span>
             <span><b>Signed in as {user.username || user.email}</b><small>{user.role === 'ADMIN' ? 'Administrator' : 'Customer account'}</small></span>
-            <a href={user.role === 'ADMIN' ? '/admin/dashboard' : '/customer/booking'}>Continue <ArrowUpRight size={14} /></a>
+            <a href={destinationFor(user.role)}>Continue <ArrowUpRight size={14} /></a>
             <button type="button" onClick={() => logout().catch((cause: unknown) => setLogoutError(cause instanceof Error ? cause.message : 'Could not sign out.'))}>Sign out</button>
           </div>
         ) : (
@@ -142,14 +144,10 @@ function AuthPage() {
             </button>
           </form>
         )}
-        <a className="preview-button" href="/preview"><Compass size={15} /> Preview Resort &amp; Rates <ArrowUpRight size={14} /></a>
+        <a className="preview-button" href="/preview#stays"><Compass size={15} /> Preview Resort &amp; Rates <ArrowUpRight size={14} /></a>
         {logoutError && <p className="login-error" role="alert">{logoutError}</p>}
-        <div className="login-assurance">
-          <ShieldCheck size={15} />
-          <span>Passwords are securely hashed on the server. New accounts are always customers; only provisioned accounts can be admins.</span>
-        </div>
       </section>
-      <a className="login-help" href="/customer/booking">Already sent an inquiry? <span>Sign in to view your booking <ArrowUpRight size={13} /></span></a>
+      <a className="login-help" href={user ? '/customer/booking#my-inquiry' : '/login?next=my-bookings'}>Already sent an inquiry? <span>Sign in to view your booking <ArrowUpRight size={13} /></span></a>
     </main>
   )
 }

@@ -205,7 +205,7 @@ export function ledgerToCsv(entries: LedgerEntry[]) {
     entry.gross.toFixed(2),
     entry.gatewayFee.toFixed(2),
     entry.net.toFixed(2),
-    entry.refundReview ? 'No (held for refund review)' : 'Yes',
+    entry.refundReview ? 'No (held for booking adjustment)' : 'Yes',
   ])
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')
 }

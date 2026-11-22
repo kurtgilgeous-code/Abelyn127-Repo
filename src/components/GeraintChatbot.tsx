@@ -11,11 +11,11 @@ interface ChatMessage extends ChatTurn {
 const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
-  content: "Woof! Welcome to Tampisawan 927! I'm **Geraint**, your resort concierge. 🐾\n\nI can help you with:\n- Cabins with exclusive, whole-resort use\n- Overnight, Day Tour, and Night Tour packages\n- Reserving with GCash or visiting as a walk-in\n\nWhat would you like to know?",
+  content: "Woof! Welcome to Tampisawan 927! I'm **Geraint**, your resort concierge. 🐾\n\nI can help you with:\n- Exclusive private stays\n- Overnight, Day Tour, and Night Tour packages\n- Reserving with GCash or visiting as a walk-in\n\nWhat would you like to know?",
 }
 
 const QUICK_QUESTIONS = [
-  'Which cabins include solo whole-resort use?',
+  'Which rooms are exclusive private stays?',
   'How do I reserve via GCash?',
   'Day Tour vs. Overnight packages?',
   'Pwede ba walk-in?',

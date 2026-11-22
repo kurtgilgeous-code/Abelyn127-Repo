@@ -8,10 +8,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * `scrollTo(id)` glides to a section and holds the highlight on it while the page scrolls, so
  * the highlight doesn't flicker across the sections in between.
  */
-export function useScrollSpy(ids: string[]) {
+export function useScrollSpy(ids: string[], landings?: Record<string, string>) {
   const [active, setActive] = useState<string | null>(null)
   const lock = useRef<{ id: string, until: number } | null>(null)
   const key = ids.join(',')
+  const landingsRef = useRef(landings)
 
   useEffect(() => {
     const sectionIds = key.split(',')
@@ -52,16 +53,27 @@ export function useScrollSpy(ids: string[]) {
     }
   }, [key])
 
-  const scrollTo = useCallback((id: string) => {
-    const target = document.getElementById(id)
-    if (!target) return
+  /** Glides to a section's content (see `landings`), just below the sticky header. */
+  const scrollTo = useCallback((id: string, behavior?: ScrollBehavior) => {
+    const section = document.getElementById(id)
+    if (!section) return
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const selector = landingsRef.current?.[id]
+    const target = (selector ? section.querySelector<HTMLElement>(selector) : null) ?? section
     // Hold the highlight on the destination; the 1.2 s cap covers browsers without `scrollend`.
     lock.current = { id, until: Date.now() + 1200 }
     setActive(id)
-    target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+    // Layout position, so an element still animating in doesn't shift the landing spot.
+    let top = 0
+    for (let node: HTMLElement | null = target; node; node = node.offsetParent as HTMLElement | null) top += node.offsetTop
+    const header = document.querySelector('.site-header')?.getBoundingClientRect().height ?? 0
+    window.scrollTo({
+      top: id === ids[0] ? 0 : Math.max(0, top - header - 12),
+      behavior: behavior ?? (reduceMotion ? 'auto' : 'smooth'),
+    })
     window.history.replaceState(null, '', `#${id}`)
-  }, [])
+    // ids[0] is the page top; `key` tracks the list itself.
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { active, scrollTo }
 }

@@ -47,8 +47,8 @@ export const accommodations: Accommodation[] = [
     entranceFeeForAll: false,
     exclusiveWholeResort: true,
     accessType: 'EXCLUSIVE_WHOLE_RESORT',
-    accessBadge: 'Exclusive / Solo Use of Entire Resort & Private Pool',
-    accessDescription: 'Includes exclusive/solo use of the entire resort & private pool. Once confirmed, no other bookings or guests can check in during your reserved dates.',
+    accessBadge: 'Exclusive Private Stay',
+    accessDescription: 'The resort and pool are private for your group during your dates. Only the room you booked is included; other rooms are not.',
     photos: [],
   },
   {
@@ -77,8 +77,8 @@ export const accommodations: Accommodation[] = [
     entranceFeeForAll: false,
     exclusiveWholeResort: true,
     accessType: 'EXCLUSIVE_WHOLE_RESORT',
-    accessBadge: 'Exclusive / Solo Use of Entire Resort & Private Pool',
-    accessDescription: 'Includes exclusive/solo use of the entire resort & private pool. Once confirmed, no other bookings or guests can check in during your reserved dates.',
+    accessBadge: 'Exclusive Private Stay',
+    accessDescription: 'The resort and pool are private for your group during your dates. Only the room you booked is included; other rooms are not.',
     photos: [],
   },
   {

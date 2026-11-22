@@ -76,7 +76,7 @@ function LedgerTable({ entries, compact = false }: { entries: LedgerEntry[], com
             <td className="num">{entry.gatewayFee ? pesoExact.format(entry.gatewayFee) : '—'}</td>
             <td className="num">
               {entry.refundReview
-                ? <span className="refund-flag">Refund review</span>
+                ? <span className="refund-flag">Needs adjustment</span>
                 : pesoExact.format(entry.net)}
             </td>
           </tr>
@@ -125,7 +125,7 @@ function PrintReport({
             <tr className="print-total"><th scope="row">Net resort earnings</th><td className="num">{pesoExact.format(summary.net)}</td></tr>
             <tr><th scope="row">Total collected (incl. gateway fees)</th><td className="num">{pesoExact.format(summary.gross)}</td></tr>
             <tr><th scope="row">Online gateway fees passed to HitPay</th><td className="num">{pesoExact.format(summary.gatewayFees)}</td></tr>
-            <tr><th scope="row">Held for refund review (excluded) · {summary.refundReviewCount} payment{summary.refundReviewCount === 1 ? '' : 's'}</th><td className="num">{pesoExact.format(summary.refundReview)}</td></tr>
+            <tr><th scope="row">Held for booking adjustment (excluded) · {summary.refundReviewCount} payment{summary.refundReviewCount === 1 ? '' : 's'}</th><td className="num">{pesoExact.format(summary.refundReview)}</td></tr>
             <tr><th scope="row">Payments received · bookings</th><td className="num">{summary.payments} · {summary.bookings}</td></tr>
             <tr><th scope="row">Cash balance still to collect (check-ins this month, not yet earned)</th><td className="num">{pesoExact.format(toCollect)}</td></tr>
           </tbody>
@@ -140,7 +140,7 @@ function PrintReport({
       <p className="print-note">
         Earnings count payments marked received, in the month they were verified (Philippine time). The 2.5% online gateway fee
         on GCash reservations is collected on behalf of the payment gateway and is excluded. Payments on bookings marked date
-        unavailable or cancelled are held for refund review and excluded until settled.
+        unavailable or cancelled are held for booking adjustment and excluded until settled.
       </p>
       <div className="print-signatures">
         <span>Prepared by</span>
@@ -251,7 +251,7 @@ export default function EarningsDashboard({ bookings, preparedBy }: { bookings: 
           </div>
           {summary.refundReview > 0 && (
             <div className="earnings-card earnings-tile is-warning" role="status">
-              <span className="earnings-label"><AlertTriangle size={13} /> Held for refund review</span>
+              <span className="earnings-label"><AlertTriangle size={13} /> Held for booking adjustment</span>
               <strong>{peso.format(summary.refundReview)}</strong>
               <small>{summary.refundReviewCount} payment{summary.refundReviewCount === 1 ? '' : 's'} on unavailable or cancelled bookings · excluded</small>
             </div>
@@ -289,7 +289,7 @@ export default function EarningsDashboard({ bookings, preparedBy }: { bookings: 
                 <th scope="col" className="num">Payments</th>
                 {channelOrder.map((channel) => <th scope="col" className="num" key={channel}>{channelLabels[channel]}</th>)}
                 <th scope="col" className="num">Gateway fees</th>
-                <th scope="col" className="num">Refund review</th>
+                <th scope="col" className="num">Needs adjustment</th>
                 <th scope="col" className="num">Net earnings</th>
               </tr>
             </thead>
@@ -315,7 +315,7 @@ export default function EarningsDashboard({ bookings, preparedBy }: { bookings: 
         <div className="earnings-card-head">
           <div>
             <h2>Payment ledger · {monthLabel(month)}</h2>
-            <p>Every payment received this month. Rows marked refund review are excluded from earnings.</p>
+            <p>Every payment received this month. Rows marked needs adjustment are excluded from earnings.</p>
           </div>
         </div>
         {entries.length ? (

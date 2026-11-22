@@ -49,7 +49,8 @@ import { BOOKING_MAX_GUESTS, calculateBookingTotal, combineAccommodations, entra
 import ResortLogo from './components/ResortLogo'
 import CustomerSideNav from './components/CustomerSideNav'
 import ProceedBookingBar from './components/ProceedBookingBar'
-import { sideNavSections } from './components/sideNavSections'
+import BookingPolicyNote from './components/BookingPolicyNote'
+import { sectionLandings, sideNavSections } from './components/sideNavSections'
 import AdminPage from './AdminPage'
 import AuthPage from './AuthPage'
 import { AuthProvider } from './auth/AuthProvider'
@@ -281,7 +282,7 @@ function CustomerPage() {
   const [paymentNotification, setPaymentNotification] = useState<{ message: string; rejected: boolean; bookingId: string } | null>(null)
   const [receiptBooking, setReceiptBooking] = useState<Booking | null>(null)
   const [galleryStayId, setGalleryStayId] = useState<string | null>(null)
-  const { active: activeSection, scrollTo: scrollToSection } = useScrollSpy(sideNavSectionIds)
+  const { active: activeSection, scrollTo: scrollToSection } = useScrollSpy(sideNavSectionIds, sectionLandings)
   const [sideNavOpen, setSideNavOpen] = useState(false)
   const closeSideNav = useCallback(() => setSideNavOpen(false), [])
   // "Proceed to Booking" pop-up: armed by picking a stay card, shown while browsing the stays.
@@ -374,12 +375,18 @@ function CustomerPage() {
     }
   }, [])
 
+  // Arriving from another page with a #section link (sign-in, receipts): land on that section.
   useEffect(() => {
-    if (!guestBookingDraft || window.location.hash !== '#booking') return
-    window.requestAnimationFrame(() => {
-      document.getElementById('booking')?.scrollIntoView()
-    })
-  }, [guestBookingDraft])
+    const id = window.location.hash.slice(1)
+    if (!sideNavSectionIds.includes(id)) return
+    const land = () => scrollToSection(id, 'instant')
+    const frame = window.requestAnimationFrame(land)
+    const settled = window.setTimeout(land, 350)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(settled)
+    }
+  }, [scrollToSection])
 
   useEffect(() => {
     if (!selectedKey || !checkInDate || !checkOutDate || checkOutDate <= checkInDate) {
@@ -491,10 +498,11 @@ function CustomerPage() {
   }
 
   const changeGuestCount = (type: GuestType, delta: number, group: 'main' | 'extra' = 'main') => {
-    setParty((current) => ({
+    // Removing someone from a full room lets the next extra guest take the included spot.
+    setParty((current) => rebalanceParty({
       ...current,
       [group]: { ...current[group], [type]: Math.max(0, current[group][type] + delta) },
-    }))
+    }, roomPax))
   }
 
   const resetAvailabilityCheck = () => {
@@ -641,7 +649,17 @@ function CustomerPage() {
   const lookupBooking = bookings.find((booking) => booking.id === lookupBookingId)
 
   return (
-    <div className="site-shell">
+    <div
+      className="site-shell"
+      onClick={(event) => {
+        // Every in-page link uses the same accurate landing spot.
+        if (event.defaultPrevented || !(event.target instanceof Element)) return
+        const id = event.target.closest('a[href^="#"]')?.getAttribute('href')?.slice(1)
+        if (!id || !sideNavSectionIds.includes(id)) return
+        event.preventDefault()
+        scrollToSection(id)
+      }}
+    >
       <AmbientAtmosphere />
       <FallingLeaves />
       <CustomerSideNav
@@ -725,7 +743,7 @@ function CustomerPage() {
               Tampisawan.
             </p>
             <div className="hero-actions">
-              <a className="button button-light" href="#booking">
+              <a className="button button-light" href="#stays">
                 Preview Resort &amp; Rates <ArrowDown size={16} />
               </a>
               <span className="hero-hours"><Clock3 size={16} /> Day tours, night tours, and overnight stays</span>
@@ -783,7 +801,7 @@ function CustomerPage() {
                       </Tooltip>
                     )}
                     {stay.exclusiveWholeResort ? (
-                      <span className="gold-glass-badge"><Sparkles size={12} /> <span className="badge-label-full">Exclusive Solo Resort</span><span className="badge-label-short">Exclusive</span></span>
+                      <span className="gold-glass-badge"><Sparkles size={12} /> <span className="badge-label-full">Exclusive Private Stay</span><span className="badge-label-short">Exclusive</span></span>
                     ) : (
                       <span className="shared-pool-badge"><Waves size={12} /> <span className="badge-label-full">Shared Pool Access</span><span className="badge-label-short">Shared Pool</span></span>
                     )}
@@ -807,8 +825,8 @@ function CustomerPage() {
                       <div className="exclusive-resort-note gold-glass-callout">
                         <ShieldCheck size={16} />
                         <span>
-                          <b>Exclusive / Solo Use of Entire Resort &amp; Private Pool</b>
-                          <small>Includes 100% private solo use of the whole resort and private pool. Once confirmed, no other guests or bookings can check in during your dates.</small>
+                          <b>Exclusive Private Stay</b>
+                          <small>The resort and pool are private for your group during your dates. Only the room you booked is included; other rooms are not. No other guests can book or check in once confirmed.</small>
                         </span>
                       </div>
                     ) : (
@@ -846,7 +864,7 @@ function CustomerPage() {
               <div className="booking-note"><ShieldCheck size={18} /><span><b>Preview dates and rates</b><small>Availability is checked against confirmed bookings; payment verification secures a stay.</small></span></div>
             </div>
 
-            <div className="booking-card" data-aos="fade-up" data-aos-delay="150">
+            <div className="booking-card" id="booking-form" data-aos="fade-up" data-aos-delay="150">
               <div className="booking-card-head">
                 <div><span className="form-step">01</span><div><h3>Your booking details</h3><p>{tourDetails[tourType].label} · {tourDetails[tourType].duration}</p></div></div>
                 <span className="booking-tag"><Leaf size={13} /> TAMPISAWAN</span>
@@ -880,7 +898,7 @@ function CustomerPage() {
                         <span className="stay-option-box" aria-hidden="true">{checked && <Check size={11} strokeWidth={3} />}</span>
                         <span className="stay-option-name">
                           {stay.name}
-                          <small className="stay-option-pax"><Users size={10} aria-hidden="true" /> Up to {stay.capacity} pax{stay.exclusiveWholeResort && <em> · Whole resort</em>}</small>
+                          <small className="stay-option-pax"><Users size={10} aria-hidden="true" /> Up to {stay.capacity} pax{stay.exclusiveWholeResort && <em> · Exclusive</em>}</small>
                         </span>
                         <span className="stay-option-price">{formatPeso(stay.baseRate)}<small>{overnightPricing ? '/22 hrs' : tourType === 'NIGHT_TOUR' ? '/night tour' : '/day tour'}</small></span>
                       </label>
@@ -902,11 +920,11 @@ function CustomerPage() {
                   <div className="exclusive-resort-note booking-exclusive-note gold-glass-callout">
                     <ShieldCheck size={16} />
                     <span>
-                      <b>Exclusive / Solo Use of Entire Resort &amp; Private Pool</b>
+                      <b>Exclusive Private Stay</b>
                       <small>
                         {selectedStays.length > 1
-                          ? 'Your selection includes a whole-resort stay. Once confirmed, the other accommodations you picked are yours too, and no other customers can book or check in during your dates.'
-                          : 'After this booking is confirmed, no other customers can book or check in during your reserved dates.'}
+                          ? 'Once confirmed, the resort and pool are private for your group and no other guests can book or check in during your dates. Only the rooms you selected are included.'
+                          : 'Once confirmed, the resort and pool are private for your group and no other guests can book or check in during your dates. Only the room you selected is included.'}
                       </small>
                     </span>
                   </div>
@@ -954,7 +972,7 @@ function CustomerPage() {
                     ? datesHaveSoftHold
                       ? 'Still open: another guest has a walk-in voucher for these dates, but vouchers don\'t reserve them. The first booking confirmed gets the dates.'
                       : combinedStay.exclusiveWholeResort
-                        ? 'Dates look available. The whole resort is reserved for you once this booking is confirmed.'
+                        ? 'Dates look available. The resort and pool will be private for your group once this booking is confirmed.'
                         : 'No confirmed booking overlaps these dates.'
                     : availabilityStatus === 'unavailable'
                       ? availabilityResult?.blocked
@@ -974,6 +992,7 @@ function CustomerPage() {
                   <b>First come, first served.</b> Dates stay open to everyone until a booking is confirmed: by a verified 50% GCash deposit, or by cash received at the resort. Inquiries and walk-in vouchers don&apos;t reserve a date.
                 </span>
               </p>
+              <BookingPolicyNote />
               <div className="form-field guest-field">
                 <div className="guest-heading"><label>Guests</label><span>{guestCount} {guestCount === 1 ? 'guest' : 'guests'}{roomPax !== null && extraCount > 0 ? ` · ${mainCount} in the room + ${extraCount} extra` : ''}</span></div>
                 {roomPax !== null && (
@@ -988,14 +1007,11 @@ function CustomerPage() {
                     const addLabel = guestCount >= guestLimit
                       ? `One booking can have up to ${guestLimit} guests.`
                       : roomFull ? 'The room is full. Add more people under Extra guests.' : ''
-                    const removeLocked = extraCount > 0 && roomPax !== null
                     return (
                       <div className="guest-row" key={type}>
                         <span><b>{guestLabels[type].title}</b><small>{guestLabels[type].detail}</small></span>
                         <div className="guest-stepper">
-                          <Tooltip label={removeLocked && mainGuests[type] > 0 ? 'Remove the extra guests first.' : ''} wrap>
-                            <button type="button" aria-label={`Remove one ${guestLabels[type].title.toLowerCase()} from the room`} disabled={removeLocked || mainGuests[type] === 0 || (type === 'adults' && mainGuests.adults === 1)} onClick={() => changeGuestCount(type, -1)}><Minus size={14} /></button>
-                          </Tooltip>
+                          <button type="button" aria-label={`Remove one ${guestLabels[type].title.toLowerCase()} from the room`} disabled={mainGuests[type] === 0 || (type === 'adults' && mainGuests.adults === 1)} onClick={() => changeGuestCount(type, -1)}><Minus size={14} /></button>
                           <strong>{mainGuests[type]}</strong>
                           <Tooltip label={addLabel} wrap>
                             <button type="button" aria-label={`Add one ${guestLabels[type].title.toLowerCase()} to the room`} disabled={guestCount >= guestLimit || roomFull} onClick={() => changeGuestCount(type, 1)}><Plus size={14} /></button>
@@ -1149,7 +1165,7 @@ function CustomerPage() {
                         <small>Reference: {booking.referenceNumber}</small>
                         {lastRejectedPayment && booking.paymentStatus !== 'PENDING_REVIEW' && (
                           <span className="customer-booking-warning" role="alert">
-                            The admin did not receive your {formatPeso(lastRejectedPayment.amount)} payment. Please try again.
+                            The resort did not receive your {formatPeso(lastRejectedPayment.amount)} payment. Please try again.
                           </span>
                         )}
                         <span className={booking.status === 'DATE_UNAVAILABLE' || booking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'customer-date-unavailable' : booking.status === 'PENDING_HOLD' ? 'customer-hold-status' : ''}>
@@ -1166,7 +1182,7 @@ function CustomerPage() {
                             : booking.status === 'DATE_UNAVAILABLE'
                             ? 'Payment received, but dates were secured by an earlier-verified booking. The resort will contact you about next steps.'
                             : booking.paymentStatus === 'PENDING_REVIEW'
-                            ? 'Payment awaiting admin review'
+                            ? 'Payment awaiting resort review'
                             : booking.paymentStatus === 'PAID' || booking.paymentStatus === 'PAID_CASH'
                               ? 'Fully paid'
                               : booking.paymentTier === 'ONLINE_GCASH_RESERVATION' && booking.gatewayPaymentId
@@ -1181,7 +1197,7 @@ function CustomerPage() {
                         </span>
                         {booking.status === 'DATE_UNAVAILABLE' && (
                           <small className="customer-date-unavailable">
-                            For refund follow-up or alternatives, message the resort on{' '}
+                            To adjust your booking to another available date, message the resort on{' '}
                             <a href="https://www.facebook.com/profile.php?id=61553358111597" target="_blank" rel="noreferrer">Facebook</a>.
                           </small>
                         )}
@@ -1202,24 +1218,24 @@ function CustomerPage() {
               <input id="lookup-contact" value={user.email || user.username} placeholder="Your account" readOnly required />
               <button className="review-button" type="submit">Find inquiry <ArrowRight size={16} /></button>
               {lookupError && <p className="customer-error" role="alert">{lookupError}</p>}
-            </form> : <div className="lookup-signin"><p>Sign in with the account used for your inquiry to check its status or report a payment.</p><a className="review-button" href="/login">Sign in <ArrowRight size={16} /></a></div>}
+            </form> : <div className="lookup-signin"><p>Sign in with the account used for your inquiry to check its status or report a payment.</p><a className="review-button" href="/login?next=my-bookings">Sign in <ArrowRight size={16} /></a></div>}
             {user && lookupBooking && (
               <div className="lookup-result">
                 <div className="lookup-result-top">
                   <span><b>{lookupBooking.accommodationName}</b><small>{tourDetails[lookupBooking.tourType].label} · {formattedDate(lookupBooking.checkInDate)} – {formattedDate(displayCheckoutDate(lookupBooking.checkOutDate, lookupBooking.tourType))} · {lookupBooking.guestCount} guests</small></span>
                   <span className={`status-badge status-${lookupBooking.status.toLowerCase()}`}>{lookupBooking.status === 'PENDING' ? 'Under review' : lookupBooking.status === 'CONFIRMED' ? 'Confirmed' : lookupBooking.status === 'DATE_UNAVAILABLE' ? 'Dates unavailable' : lookupBooking.status === 'PENDING_HOLD' ? 'Walk-in voucher' : lookupBooking.status === 'EXPIRED' ? (lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? 'Checkout not finished' : 'Voucher expired') : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Hold released' : 'Declined'}</span>
                 </div>
-                <p className="lookup-payment-state"><CircleDollarSign size={15} /> {lookupBooking.status === 'PENDING_HOLD' ? (isActiveHold(lookupBooking, now) ? `Heads-up hold only (first-come, first-served). It expires in ${formatHoldTimeLeft(holdMillisecondsLeft(lookupBooking.expiresAt, now))}. Pay ${formatPeso(lookupBooking.baseResortPrice)} in cash at the resort before then, or secure the date now with the GCash deposit.` : 'This pending hold has expired and the dates were released.') : lookupBooking.status === 'EXPIRED' ? (lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? 'This GCash checkout was not finished, so no payment was received. Book again to reserve these dates.' : 'This voucher expired after the check-in date without payment, so the dates were released.') : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Another guest\'s booking for these dates was confirmed first (first come, first served), so this unpaid hold was released.' : lookupBooking.status === 'DATE_UNAVAILABLE' ? `Your payment of ${formatPeso(lookupBooking.paidAmount)} was received, but another confirmed booking secured these dates first. The resort will contact you to arrange a refund or discuss alternatives.` : lookupBooking.status === 'CANCELLED' ? 'This booking was cancelled by the resort.' : lookupBooking.paymentStatus === 'PAID_CASH' ? 'Walk-in cash payment received in full. Your booking is confirmed.' : lookupBooking.paymentStatus === 'PAID' ? 'Full payment verified. Your booking is successful.' : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' && lookupBooking.gatewayPaymentId ? `GCash payment confirmed. The remaining ${formatPeso(Math.max(0, lookupBooking.baseResortPrice - lookupBooking.paidAmount))} base balance is due in cash at check-in.` : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? `GCash payment is awaiting HitPay confirmation. Total due now: ${formatPeso(lookupBooking.totalOnlinePaid)}.` : lookupBooking.paymentStatus === 'PENDING_REVIEW' ? 'Your manual payment proof is waiting for admin review.' : lookupBooking.paymentStatus === 'NOT_PAID' ? 'The payment was not confirmed.' : 'Your booking is waiting for payment confirmation.'}</p>
+                <p className="lookup-payment-state"><CircleDollarSign size={15} /> {lookupBooking.status === 'PENDING_HOLD' ? (isActiveHold(lookupBooking, now) ? `Heads-up hold only (first-come, first-served). It expires in ${formatHoldTimeLeft(holdMillisecondsLeft(lookupBooking.expiresAt, now))}. Pay ${formatPeso(lookupBooking.baseResortPrice)} in cash at the resort before then, or secure the date now with the GCash deposit.` : 'This pending hold has expired and the dates were released.') : lookupBooking.status === 'EXPIRED' ? (lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? 'This GCash checkout was not finished, so no payment was received. Book again to reserve these dates.' : 'This voucher expired after the check-in date without payment, so the dates were released.') : lookupBooking.status === 'CANCELLED_BY_GCASH_PRIORITY' ? 'Another guest\'s booking for these dates was confirmed first (first come, first served), so this unpaid hold was released.' : lookupBooking.status === 'DATE_UNAVAILABLE' ? `Your payment of ${formatPeso(lookupBooking.paidAmount)} was received, but another confirmed booking secured these dates first. The resort will contact you to adjust your booking to another available date.` : lookupBooking.status === 'CANCELLED' ? 'This booking was cancelled by the resort.' : lookupBooking.paymentStatus === 'PAID_CASH' ? 'Walk-in cash payment received in full. Your booking is confirmed.' : lookupBooking.paymentStatus === 'PAID' ? 'Full payment verified. Your booking is successful.' : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' && lookupBooking.gatewayPaymentId ? `GCash payment confirmed. The remaining ${formatPeso(Math.max(0, lookupBooking.baseResortPrice - lookupBooking.paidAmount))} base balance is due in cash at check-in.` : lookupBooking.paymentTier === 'ONLINE_GCASH_RESERVATION' ? `GCash payment is awaiting HitPay confirmation. Total due now: ${formatPeso(lookupBooking.totalOnlinePaid)}.` : lookupBooking.paymentStatus === 'PENDING_REVIEW' ? 'Your manual payment proof is waiting for the resort to review it.' : lookupBooking.paymentStatus === 'NOT_PAID' ? 'The payment was not confirmed.' : 'Your booking is waiting for payment confirmation.'}</p>
                 {lookupBooking.status === 'DATE_UNAVAILABLE' && (
                   <p className="customer-date-unavailable">
-                    To arrange a refund or discuss alternatives, message the resort on{' '}
+                    To adjust your booking to another available date, message the resort on{' '}
                     <a href="https://www.facebook.com/profile.php?id=61553358111597" target="_blank" rel="noreferrer">Facebook</a>.
                   </p>
                 )}
                 {(() => {
                   const rejectedPayment = [...lookupBooking.payments].reverse().find((payment) => payment.status === 'NOT_RECEIVED')
                   return rejectedPayment && lookupBooking.paymentStatus !== 'PENDING_REVIEW'
-                    ? <div className="payment-rejected-warning" role="alert"><AlertTriangle size={17} /><span><b>Payment not received</b><small>The admin did not receive your {formatPeso(rejectedPayment.amount)} payment. Please check your transaction details and submit the payment again.</small></span></div>
+                    ? <div className="payment-rejected-warning" role="alert"><AlertTriangle size={17} /><span><b>Payment not received</b><small>The resort did not receive your {formatPeso(rejectedPayment.amount)} payment. Please check your transaction details and submit the payment again.</small></span></div>
                     : null
                 })()}
                 <div className="customer-payment-history">
@@ -1303,7 +1319,7 @@ function CustomerPage() {
                 </div>
               </div>
             </div>
-            <p className="rates-caveat" data-aos="fade-up">Day and Night Tours (one day) use the same room rate. Overnight stays (22 hours) and every booking of 2 or more days use the overnight rate for each day; for example, Abelyn's Cabin Glass for 3 days is 3 × ₱7,500 = ₱22,500. Every rate includes entrance for up to the room's pax: guests fill the room first, and each extra guest pays that tour's entrance fee (Day Tour ₱150 adult, ₱120 senior/child; Night Tour and Overnight ₱250 adult, ₱150 senior/child); Gazebo, Calesa Tables, and Kubo ni Gerrant charge entrance for every guest. Groups bigger than the room's pax are welcome, up to 100 guests per booking. Please confirm availability and final charges with Tampisawan before payment.</p>
+            <p className="rates-caveat" data-aos="fade-up">Day and Night Tours (one day) use the same room rate. Overnight stays (22 hours) and every booking of 2 or more days use the overnight rate for each day; for example, Abelyn's Cabin Glass for 3 days is 3 × ₱7,500 = ₱22,500. Every rate includes entrance for up to the room's pax: guests fill the room first, and each extra guest pays that tour's entrance fee (Day Tour ₱150 adult, ₱120 senior/child; Night Tour and Overnight ₱250 adult, ₱150 senior/child); Gazebo, Calesa Tables, and Kubo ni Gerrant charge entrance for every guest. Groups bigger than the room's pax are welcome, up to 100 guests per booking. Please confirm availability and final charges with Tampisawan before payment. Payments are non-refundable; reasonable booking adjustments, such as a change of date, may be requested subject to availability and the resort's approval.</p>
           </div>
         </section>
       </main>
@@ -1368,6 +1384,7 @@ function CustomerPage() {
             <div className="inquiry-submit-form">
               <div className="signed-in-identity"><ShieldCheck size={17} /><span><b>{user?.name}</b><small>Signed in as {user?.email}</small></span></div>
               {storageError && <p className="customer-error" role="alert">{storageError}</p>}
+              <BookingPolicyNote />
               <button className="review-button modal-done" type="button" onClick={submitPendingHold} disabled={paymentSubmitting || holdSubmitting}>
                 {holdSubmitting ? 'Creating your voucher…' : 'Confirm walk-in & get voucher'} <ArrowRight size={16} />
               </button>
@@ -1399,8 +1416,8 @@ function CustomerPage() {
               <div className="exclusive-resort-note inquiry-exclusive-note gold-glass-callout">
                 <ShieldCheck size={16} />
                 <span>
-                  <b>Exclusive / Solo Use of Entire Resort &amp; Private Pool</b>
-                  <small>Once your GCash reservation deposit is confirmed, no other guests or bookings can check in during your reserved dates.</small>
+                  <b>Exclusive Private Stay</b>
+                  <small>Once your GCash deposit is confirmed, the resort and pool are private for your group during your dates. Only the rooms in this booking are included.</small>
                 </span>
               </div>
             ) : (
@@ -1416,6 +1433,7 @@ function CustomerPage() {
               <div className="signed-in-identity"><ShieldCheck size={17} /><span><b>{user?.name}</b><small>Signed in as {user?.email}</small></span></div>
               {storageError && <p className="customer-error" role="alert">{storageError}</p>}
               <span className="priority-badge"><ShieldCheck size={12} /> TOP PRIORITY • INSTANT CONFIRMATION</span>
+              <BookingPolicyNote />
               <button className="review-button modal-done priority-button" type="submit" disabled={paymentSubmitting || holdSubmitting}>
                 {paymentSubmitting ? 'Opening secure checkout…' : 'Continue to GCash checkout'} <ArrowRight size={16} />
               </button>
@@ -1459,14 +1477,14 @@ function App() {
       ) : bookingCancelledRoute ? (
         <BookingCancelledPage />
       ) : adminRoute ? (
-        <ProtectedRoute role="ADMIN"><AdminRoute /></ProtectedRoute>
+        <AdminRoute />
       ) : customerRoute ? (
         <ProtectedRoute role="CUSTOMER"><CustomerPage /></ProtectedRoute>
       ) : landingRoute ? (
         <CustomerPage />
       ) : <AuthPage />}
-      {/* Geraint is available to guests and customers everywhere except the admin dashboard. */}
-      {!adminRoute && <GeraintChatbot />}
+      {/* Geraint stays off the sign-in page and the admin dashboard. */}
+      {(landingRoute || customerRoute || bookingSuccessRoute || bookingCancelledRoute) && <GeraintChatbot />}
     </AuthProvider>
   )
 }
@@ -1478,11 +1496,7 @@ function AdminRoute() {
 
   useEffect(() => {
     if (loading) return
-    if (!user) {
-      window.location.replace('/login')
-      return
-    }
-    if (user.role !== 'ADMIN') {
+    if (!user || user.role !== 'ADMIN') {
       window.location.replace('/')
       return
     }
@@ -1499,12 +1513,12 @@ function AdminRoute() {
           window.location.replace('/')
           return
         }
-        if (!response.ok) throw new Error(`Could not verify admin access (${response.status}).`)
+        if (!response.ok) throw new Error('This page could not be loaded.')
         if (active) setChecking(false)
       })
       .catch((cause: unknown) => {
         if (active) {
-          setError(cause instanceof Error ? cause.message : 'Could not verify admin access.')
+          setError(cause instanceof Error ? cause.message : 'This page could not be loaded.')
           setChecking(false)
         }
       })
@@ -1514,8 +1528,8 @@ function AdminRoute() {
     }
   }, [loading, user, token, logout])
 
-  if (loading || checking) return <div className="auth-loading">Verifying your admin access…</div>
-  if (error) return <div className="auth-failure" role="alert">{error}<p>Start the API server and try again.</p></div>
+  if (loading || checking) return <div className="auth-loading">Loading…</div>
+  if (error) return <div className="auth-failure" role="alert">{error}<p>Please try again.</p></div>
   if (!user || user.role !== 'ADMIN') return <div className="auth-loading">Redirecting…</div>
   return <AdminPage />
 }

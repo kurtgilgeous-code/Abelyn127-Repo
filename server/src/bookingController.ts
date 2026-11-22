@@ -439,7 +439,7 @@ export async function reviewAdminPayment(request: Request, response: Response) {
   }
   if (updated === 'DATE_UNAVAILABLE') {
     response.json({
-      message: 'Payment received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact/refund follow-up.',
+      message: 'Payment received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact to adjust the booking.',
       dateUnavailable: true,
     })
     return
@@ -463,7 +463,7 @@ export async function recordAdminCashPayment(request: Request, response: Respons
   }
   if (recorded === 'DATE_UNAVAILABLE') {
     response.status(201).json({
-      message: 'Cash was received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact/refund follow-up.',
+      message: 'Cash was received and recorded, but these dates were already secured by an earlier-verified booking. The booking is marked date unavailable and requires customer contact to adjust the booking.',
       dateUnavailable: true,
     })
     return

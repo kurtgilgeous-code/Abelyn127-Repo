@@ -123,7 +123,7 @@ export function requireAdmin(
   next: NextFunction,
 ) {
   if (request.authUser?.role !== 'ADMIN') {
-    response.status(403).json({ message: 'Admin access requires an administrator account.' })
+    response.status(403).json({ message: 'You do not have access to this page.' })
     return
   }
   next()

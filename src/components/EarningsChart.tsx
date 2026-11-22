@@ -146,7 +146,7 @@ export default function EarningsChart({
               <small>{channelLabels[channel]}</small>
             </span>
           ))}
-          {hoveredMonth.refundReview > 0 && <small className="tooltip-note">{pesoExact.format(hoveredMonth.refundReview)} held for refund review</small>}
+          {hoveredMonth.refundReview > 0 && <small className="tooltip-note">{pesoExact.format(hoveredMonth.refundReview)} held for booking adjustment</small>}
         </div>
       )}
     </div>

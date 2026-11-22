@@ -16,7 +16,7 @@ const statusLabels: Record<string, string> = {
   PENDING: 'Awaiting payment',
   CONFIRMED: 'Confirmed',
   CANCELLED: 'Cancelled by admin',
-  DATE_UNAVAILABLE: 'Paid · dates taken (refund review)',
+  DATE_UNAVAILABLE: 'Paid · dates taken (needs adjustment)',
   PENDING_HOLD: 'Walk-in voucher',
   EXPIRED: 'Hold expired',
   CANCELLED_BY_GCASH_PRIORITY: 'Released · confirmed for another guest',

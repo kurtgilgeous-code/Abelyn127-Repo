@@ -9,3 +9,12 @@ export const sideNavSections: { id: string, label: string, icon: LucideIcon }[] 
   { id: 'amenities', label: 'Amenities', icon: Waves },
   { id: 'rates', label: 'Rates', icon: Tag },
 ]
+
+/** Where each section's links land: its heading or form, not the empty space above it. */
+export const sectionLandings: Record<string, string> = {
+  stays: '.section-heading',
+  booking: '#booking-form',
+  'my-inquiry': '.customer-followup-copy',
+  amenities: '.amenities-copy',
+  rates: '.rates-inner',
+}
