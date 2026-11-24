@@ -1,0 +1,74 @@
+.retreat-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #173226;
+}
+
+.retreat-scene,
+.retreat-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.retreat-photo {
+  animation: retreat-drift 26s ease-in-out infinite alternate;
+}
+
+/* Darkens the edges and the bottom so the white title and the search bar stay easy to read. */
+.retreat-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 22, 16, .55) 0%, rgba(8, 22, 16, .08) 26%, rgba(8, 22, 16, .12) 55%, rgba(8, 22, 16, .62) 100%),
+    radial-gradient(120% 80% at 50% 45%, transparent 55%, rgba(6, 18, 13, .45) 100%);
+}
+
+.retreat-leaves {
+  transform-box: fill-box;
+  animation: retreat-sway 9s ease-in-out infinite alternate;
+}
+
+.retreat-leaves-left { transform-origin: 0 0; }
+.retreat-leaves-right { transform-origin: 100% 0; animation-duration: 11s; animation-delay: -4s; }
+
+.retreat-caustics {
+  animation: retreat-ripple 14s ease-in-out infinite alternate;
+}
+
+.retreat-rays {
+  animation: retreat-glow 10s ease-in-out infinite alternate;
+}
+
+@keyframes retreat-sway {
+  from { transform: rotate(-.6deg); }
+  to { transform: rotate(.9deg); }
+}
+
+@keyframes retreat-ripple {
+  from { transform: translate(-30px, 0); }
+  to { transform: translate(30px, 10px); }
+}
+
+@keyframes retreat-glow {
+  from { opacity: .65; }
+  to { opacity: 1; }
+}
+
+@keyframes retreat-drift {
+  from { transform: scale(1.04); }
+  to { transform: scale(1.1) translateY(-1%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .retreat-leaves,
+  .retreat-caustics,
+  .retreat-rays,
+  .retreat-photo {
+    animation: none;
+  }
+}

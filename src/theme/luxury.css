@@ -72,7 +72,7 @@ body::before {
 :root .rates-heading h2,
 :root .customer-followup-copy h2,
 :root .review-modal h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Cormorant Garamond', Georgia, serif;
   font-weight: 500;
   letter-spacing: -.01em;
 }

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+/** Where the menu bar's bottom edge sits once it sticks: its height plus its gap from the top. */
+function stuckHeaderBottom() {
+  const header = document.querySelector<HTMLElement>('.site-header')
+  if (!header) return 0
+  return header.getBoundingClientRect().height + (parseFloat(getComputedStyle(header).top) || 0)
+}
+
 /**
  * Tracks which page section the visitor is reading, for highlighting the matching nav link.
  * `ids` must be in page order. A section counts as current once its top passes a line 30% down
@@ -24,7 +31,7 @@ export function useScrollSpy(ids: string[], landings?: Record<string, string>) {
         if (Date.now() < lock.current.until) return
         lock.current = null
       }
-      const header = document.querySelector('.site-header')?.getBoundingClientRect().height ?? 0
+      const header = stuckHeaderBottom()
       const line = header + window.innerHeight * 0.3
       let current: string | null = null
       for (const id of sectionIds) {
@@ -66,7 +73,7 @@ export function useScrollSpy(ids: string[], landings?: Record<string, string>) {
     // Layout position, so an element still animating in doesn't shift the landing spot.
     let top = 0
     for (let node: HTMLElement | null = target; node; node = node.offsetParent as HTMLElement | null) top += node.offsetTop
-    const header = document.querySelector('.site-header')?.getBoundingClientRect().height ?? 0
+    const header = stuckHeaderBottom()
     window.scrollTo({
       top: id === ids[0] ? 0 : Math.max(0, top - header - 12),
       behavior: behavior ?? (reduceMotion ? 'auto' : 'smooth'),
