@@ -1,6 +1,6 @@
 import type { Booking, PaymentMethod } from '../data/bookings'
 
-async function errorMessage(response: Response) {
+export async function errorMessage(response: Response) {
   try {
     const body: unknown = await response.json()
     if (typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string') {
@@ -10,6 +10,70 @@ async function errorMessage(response: Response) {
     return `Request failed (${response.status}).`
   }
   return `Request failed (${response.status}).`
+}
+
+/** What the booking endpoints need: one or more accommodations booked together. */
+export type StayRequest = Pick<Booking, 'accommodationIds' | 'tourType' | 'checkInDate' | 'checkOutDate' | 'guests'> & {
+  /** Guests beyond the rooms' pax, by type; omitted when every guest pays entrance. */
+  extraGuests?: { adults: number; seniorsPwd: number; children: number }
+}
+
+export async function fetchAvailability(
+  accommodationIds: string[],
+  checkInDate: string,
+  checkOutDate: string,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ accommodationIds: accommodationIds.join(','), checkInDate, checkOutDate })
+  const response = await fetch(`/api/availability?${query}`, { signal })
+  if (!response.ok) throw new Error(await errorMessage(response))
+
+  const body: unknown = await response.json()
+  if (typeof body !== 'object' || body === null || !('available' in body) || typeof body.available !== 'boolean') {
+    throw new Error('The server returned an invalid availability response.')
+  }
+  return {
+    available: body.available,
+    /** Another guest has an unexpired walk-in voucher on these dates (soft, not blocking). */
+    pendingHold: 'pendingHold' in body && body.pendingHold === true,
+    /** The resort closed these dates (maintenance / private use). */
+    blocked: 'blocked' in body && body.blocked === true,
+  }
+}
+
+/** Priority #2: a walk-in voucher, valid through the check-in date (no payment now). */
+export async function createPendingHold(
+  token: string,
+  booking: StayRequest,
+) {
+  const response = await fetch('/api/bookings/pending-hold', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(booking),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  const body: unknown = await response.json()
+  if (
+    typeof body !== 'object' || body === null ||
+    !('bookingId' in body) || typeof body.bookingId !== 'string' ||
+    !('referenceNumber' in body) || typeof body.referenceNumber !== 'string' ||
+    !('expiresAt' in body) || typeof body.expiresAt !== 'string'
+  ) {
+    throw new Error('The server returned an invalid pending-hold response.')
+  }
+  return { bookingId: body.bookingId, referenceNumber: body.referenceNumber, expiresAt: body.expiresAt }
+}
+
+/** Admin: the hold's guest paid the full rate in cash; convert it to a confirmed booking. */
+export async function confirmHoldWithCash(token: string, bookingId: string) {
+  const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}/confirm-hold-cash`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
 }
 
 async function readBookings(response: Response): Promise<Booking[]> {
@@ -34,15 +98,16 @@ export async function fetchAdminBookings(token: string) {
   }))
 }
 
-export async function createBookingRequest(
+/** GCash booking with its payment screenshot. It stays open to others until the admin verifies it. */
+export async function createGcashBooking(
   token: string,
-  booking: Omit<Booking, 'id' | 'createdAt' | 'status' | 'paymentStatus' | 'paymentAmount' | 'paidAmount' | 'paymentMethod' | 'paymentReference' | 'proofFileName' | 'hasPaymentProof' | 'payments'>,
-  payment: { amount: number; method: PaymentMethod; reference: string; payerAccount: string; proof: File },
+  booking: StayRequest & { estimatedTotal: number; depositRequired: number },
+  payment: { amount: number; reference: string; payerAccount: string; proof: File },
 ) {
   const formData = new FormData()
   formData.append('booking', JSON.stringify(booking))
-  formData.append('paymentAmount', String(payment.amount))
-  formData.append('paymentMethod', payment.method)
+  formData.append('paymentAmount', payment.amount.toFixed(2))
+  formData.append('paymentMethod', 'GCASH')
   formData.append('paymentReference', payment.reference)
   formData.append('payerAccount', payment.payerAccount)
   formData.append('proof', payment.proof)
@@ -53,10 +118,41 @@ export async function createBookingRequest(
   })
   if (!response.ok) throw new Error(await errorMessage(response))
   const body: unknown = await response.json()
-  if (typeof body !== 'object' || body === null || !('id' in body) || typeof body.id !== 'string') {
+  if (
+    typeof body !== 'object' || body === null ||
+    !('id' in body) || typeof body.id !== 'string' ||
+    !('referenceNumber' in body) || typeof body.referenceNumber !== 'string'
+  ) {
     throw new Error('The server returned an invalid booking response.')
   }
-  return body.id
+  return { id: body.id, referenceNumber: body.referenceNumber, datesTaken: 'datesTaken' in body && body.datesTaken === true }
+}
+
+export async function createWalkInCashBooking(
+  token: string,
+  booking: StayRequest & {
+    customerName: string
+    customerEmail: string
+  },
+) {
+  const response = await fetch('/api/admin/bookings/walk-in', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(booking),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  const body: unknown = await response.json()
+  if (
+    typeof body !== 'object' || body === null ||
+    !('bookingId' in body) || typeof body.bookingId !== 'string' ||
+    !('referenceNumber' in body) || typeof body.referenceNumber !== 'string'
+  ) {
+    throw new Error('The server returned an invalid walk-in booking response.')
+  }
+  return { bookingId: body.bookingId, referenceNumber: body.referenceNumber }
 }
 
 export async function submitPaymentProof(
@@ -68,7 +164,7 @@ export async function submitPaymentProof(
   formData.append('paymentMethod', input.paymentMethod)
   formData.append('paymentReference', input.paymentReference)
   formData.append('payerAccount', input.payerAccount)
-  formData.append('paymentAmount', String(input.paymentAmount))
+  formData.append('paymentAmount', input.paymentAmount.toFixed(2))
   formData.append('proof', input.proof)
   const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}/payment-proof`, {
     method: 'POST',
@@ -76,6 +172,8 @@ export async function submitPaymentProof(
     body: formData,
   })
   if (!response.ok) throw new Error(await errorMessage(response))
+  const body: unknown = await response.json()
+  return { datesTaken: typeof body === 'object' && body !== null && 'datesTaken' in body && body.datesTaken === true }
 }
 
 export async function updateBookingReview(

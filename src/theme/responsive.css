@@ -1,0 +1,187 @@
+/* =========================================================================
+   Every screen size: layouts reflow instead of squeezing or cutting off text.
+   ========================================================================= */
+html,
+body {
+  min-width: 0;
+}
+
+/* ---- Booking form ---- */
+html:root:root .site-shell .stay-options {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+html:root:root .site-shell .stay-option {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  column-gap: 10px;
+}
+
+html:root:root .site-shell .stay-option-name {
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+html:root:root .site-shell .stay-option-pax {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 5px;
+}
+
+html:root:root .site-shell .stay-option-price {
+  white-space: nowrap;
+}
+
+html:root:root .site-shell :is(.tour-option, .tour-option > *) {
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* The form and its intro sit side by side only when both have real room. */
+@media (max-width: 1180px) {
+  html:root:root .site-shell .booking-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  html:root:root .site-shell .booking-intro {
+    position: static;
+    max-width: 720px;
+  }
+
+  html:root:root .site-shell .booking-card {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* Very small phones: the price moves under the room name. */
+@media (max-width: 400px) {
+  html:root:root .site-shell .stay-option {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  html:root:root .site-shell .stay-option-box {
+    grid-row: 1 / span 2;
+  }
+
+  html:root:root .site-shell .stay-option-price {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  html:root:root .site-shell .date-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  html:root:root .site-shell .date-arrow {
+    display: none;
+  }
+}
+
+/* ---- Admin ---- */
+.admin-shell .admin-main,
+.admin-shell .admin-content {
+  min-width: 0;
+}
+
+.admin-shell .admin-topbar {
+  gap: 8px;
+}
+
+.admin-shell .customer-link {
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .admin-shell .admin-page-heading {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .admin-shell .admin-heading-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 720px) {
+  html:root:root .admin-shell .admin-page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  html:root:root .admin-shell .admin-page-heading p {
+    max-width: none;
+  }
+
+  html:root:root .admin-shell .admin-heading-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: row;
+  }
+
+  html:root:root .admin-shell :is(.walkin-new-booking-button, .ops-block-button) {
+    max-width: none;
+    min-height: 46px;
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .admin-shell .customer-link svg {
+    display: none;
+  }
+}
+
+/* Long usernames and emails wrap inside their row. */
+.users-identity,
+.users-identity :is(b, small) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Header: links stay on one line, or move into the side menu ---- */
+.site-header .main-nav a {
+  white-space: nowrap;
+}
+
+@media (max-width: 1340px) {
+  .site-header .main-nav {
+    display: none;
+  }
+
+  .site-header .header-actions {
+    margin-left: auto;
+  }
+}
+
+/* ---- Booking intro above the form: use the full width ---- */
+@media (min-width: 721px) and (max-width: 1180px) {
+  html:root:root .site-shell .booking-inner {
+    padding-top: 40px;
+  }
+
+  html:root:root .site-shell .booking-intro {
+    display: grid;
+    max-width: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 32px;
+  }
+
+  html:root:root .site-shell .booking-intro > * {
+    grid-column: 1;
+  }
+
+  html:root:root .site-shell .booking-intro > .booking-note {
+    grid-row: 1 / span 3;
+    grid-column: 2;
+    margin: 0;
+  }
+}

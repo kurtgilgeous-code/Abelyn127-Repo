@@ -1,6 +1,8 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowUpRight, Check, ShieldCheck, Waves } from 'lucide-react'
+import { ArrowUpRight, Check, Compass } from 'lucide-react'
 import { useAuth } from './auth/useAuth'
+import ResortLogo from './components/ResortLogo'
+import FallingLeaves from './components/FallingLeaves'
 import './LoginPage.css'
 
 function AuthPage() {
@@ -15,9 +17,17 @@ function AuthPage() {
   const [logoutError, setLogoutError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const continueToRolePage = (role: 'ADMIN' | 'CUSTOMER') => {
-    window.location.replace(role === 'ADMIN' ? '/admin/dashboard' : '/customer/booking')
+  const destinationFor = (role: 'ADMIN' | 'CUSTOMER') => {
+    const params = new URLSearchParams(window.location.search)
+    return role === 'ADMIN'
+      ? '/admin/dashboard'
+        : params.get('next') === 'preview'
+        ? '/#booking'
+        : params.get('next') === 'my-bookings'
+        ? '/customer/booking#my-inquiry'
+        : '/customer/booking'
   }
+  const continueToRolePage = (role: 'ADMIN' | 'CUSTOMER') => window.location.replace(destinationFor(role))
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -46,12 +56,10 @@ function AuthPage() {
 
   return (
     <main className="login-page">
-      <a className="login-back" href="/"><ArrowLeft size={15} /> Back to Tampisawan</a>
+      <FallingLeaves />
       <section className="login-card">
         <a className="login-brand" href="/" aria-label="Tampisawan home">
-          <span><Waves size={22} /></span>
-          <b>TAMPISAWAN</b>
-          <small>927 Abelyn&apos;s Private Pool</small>
+          <ResortLogo className="resort-logo-login" />
         </a>
         <div className="login-divider" />
         <span className="login-eyebrow"><span /> {isRegistering ? 'CREATE YOUR CUSTOMER ACCOUNT' : 'SIGN IN TO TAMPISAWAN'}</span>
@@ -59,15 +67,35 @@ function AuthPage() {
         <p className="login-intro">
           {isRegistering
             ? 'Create an account to send booking inquiries and keep track of your request.'
-            : 'Sign in to continue to the booking portal or your admin dashboard.'}
+            : 'Sign in to book a stay, or preview the resort and rates without an account.'}
         </p>
+        <div className="auth-tabs" role="tablist" aria-label="Account access">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isRegistering}
+            className={!isRegistering ? 'active' : ''}
+            onClick={() => { setIsRegistering(false); setFormError('') }}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isRegistering}
+            className={isRegistering ? 'active' : ''}
+            onClick={() => { setIsRegistering(true); setFormError('') }}
+          >
+            Create Account
+          </button>
+        </div>
         {loading ? (
           <p className="login-status">Checking your sign-in…</p>
         ) : user ? (
           <div className="signed-in-card">
             <span className="signed-in-check"><Check size={18} /></span>
             <span><b>Signed in as {user.username || user.email}</b><small>{user.role === 'ADMIN' ? 'Administrator' : 'Customer account'}</small></span>
-            <a href={user.role === 'ADMIN' ? '/admin/dashboard' : '/customer/booking'}>Continue <ArrowUpRight size={14} /></a>
+            <a href={destinationFor(user.role)}>Continue <ArrowUpRight size={14} /></a>
             <button type="button" onClick={() => logout().catch((cause: unknown) => setLogoutError(cause instanceof Error ? cause.message : 'Could not sign out.'))}>Sign out</button>
           </div>
         ) : (
@@ -111,18 +139,12 @@ function AuthPage() {
               {submitting ? 'Please wait…' : isRegistering ? 'Create customer account' : 'Sign in'}
               {!submitting && <ArrowUpRight size={15} />}
             </button>
-            <button type="button" className="account-mode-toggle" onClick={() => { setIsRegistering((current) => !current); setFormError('') }}>
-              {isRegistering ? 'Already have an account? Sign in' : 'New to Tampisawan? Create your account'}
-            </button>
           </form>
         )}
+        <a className="preview-button" href="/preview#stays"><Compass size={15} /> Preview Resort &amp; Rates <ArrowUpRight size={14} /></a>
         {logoutError && <p className="login-error" role="alert">{logoutError}</p>}
-        <div className="login-assurance">
-          <ShieldCheck size={15} />
-          <span>Passwords are securely hashed on the server. New accounts are always customers; only provisioned accounts can be admins.</span>
-        </div>
       </section>
-      <a className="login-help" href="/#my-inquiry">Already sent an inquiry? <span>Check your request <ArrowUpRight size={13} /></span></a>
+      <a className="login-help" href={user ? '/customer/booking#my-inquiry' : '/login?next=my-bookings'}>Already sent an inquiry? <span>Sign in to view your booking <ArrowUpRight size={13} /></span></a>
     </main>
   )
 }

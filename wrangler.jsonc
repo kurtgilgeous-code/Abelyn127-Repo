@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tampisawan-booking",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-10-25",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tampisawan-booking",
+      "database_id": "5f39fc5a-57f5-4a99-9737-f9d2a04f3700",
+      "migrations_dir": "cloudflare/migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PAYMENT_PROOFS",
+      "bucket_name": "tampisawan-payment-proofs"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  // Expires unpaid 24-hour pending cash holds every 15 minutes (see `scheduled` in cloudflare/worker.ts).
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  }
+}

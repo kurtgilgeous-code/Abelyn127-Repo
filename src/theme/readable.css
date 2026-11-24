@@ -1,0 +1,215 @@
+/* =========================================================================
+   Layout room for the larger text (see readableFonts in vite.config.ts).
+   ========================================================================= */
+
+/* Button labels and pills stay on one line. */
+.site-shell .button {
+  white-space: nowrap;
+}
+
+html:root:root .showcase-pill-tier {
+  letter-spacing: .04em;
+}
+
+/* Admin tabs wrap instead of hiding behind a sideways scroll. */
+.admin-shell .admin-main-tabs,
+.admin-shell .admin-sub-tabs {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+/* Rate cards: labels wrap, and prices always stay visible on the right. */
+html:root:root .site-shell .rate-detail-card {
+  min-width: 0;
+}
+
+html:root:root .site-shell .rate-pax-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html:root:root .site-shell :is(.rate-prices, .rate-pax-list) li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+html:root:root .site-shell :is(.rate-prices, .rate-pax-list) li > span {
+  min-width: 0;
+  flex: 1;
+  white-space: normal;
+}
+
+html:root:root .site-shell :is(.rate-prices, .rate-pax-list) li > strong {
+  flex: none;
+  max-width: 55%;
+  text-align: right;
+  white-space: normal;
+}
+
+@media (max-width: 1240px) {
+  html:root:root .site-shell .rate-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The header links need more width now: use the side menu sooner. */
+@media (max-width: 1180px) {
+  .site-header .main-nav {
+    display: none;
+  }
+
+  .site-header .header-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  /* Stay cards: photo on top, full-width details below. */
+  html:root:root .site-shell .stay-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  html:root:root .site-shell .stay-art {
+    width: 100%;
+    height: 176px;
+    min-height: 176px;
+    flex: none;
+  }
+
+  /* Tour types: one easy-to-read row each. */
+  html:root:root .site-shell .tour-options {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  html:root:root .site-shell .tour-option {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 12px 14px;
+    text-align: left;
+  }
+
+  html:root:root .site-shell .tour-option > svg {
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+
+  html:root:root .site-shell .tour-option > :is(b, small) {
+    grid-column: 2;
+  }
+
+  .site-shell .stay-picker legend {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 10px;
+  }
+}
+
+/* Hero slideshow: the two labels are stacked so they never overlap. */
+html:root:root .showcase-pill-tier {
+  top: 58px;
+  right: auto;
+  left: 16px;
+}
+
+/* Stay card picture panel: every label has its own corner, so nothing overlaps. */
+html:root:root .site-shell .stay-art {
+  position: relative;
+  height: 176px;
+  min-height: 176px;
+}
+
+html:root:root .site-shell .stay-art :is(.gold-glass-badge, .shared-pool-badge, .stay-photos-button, .fee-pill, .stay-capacity, .stay-art-icon) {
+  position: absolute;
+  z-index: 2;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  margin: 0;
+  transform: none;
+  white-space: nowrap;
+}
+
+html:root:root .site-shell .stay-art :is(.gold-glass-badge, .shared-pool-badge) {
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 11px;
+  letter-spacing: .03em;
+}
+
+html:root:root .site-shell .stay-art .badge-label-full {
+  display: none;
+}
+
+html:root:root .site-shell .stay-art .badge-label-short {
+  display: inline;
+}
+
+html:root:root .site-shell .stay-art .stay-photos-button {
+  top: 12px;
+  right: 12px;
+}
+
+html:root:root .site-shell .stay-art .fee-pill {
+  top: 58px;
+  left: 12px;
+}
+
+html:root:root .site-shell .stay-art .stay-art-icon {
+  bottom: 12px;
+  left: 12px;
+}
+
+html:root:root .site-shell .stay-art .stay-capacity {
+  right: 12px;
+  bottom: 12px;
+}
+
+html:root:root .site-shell .stay-art .tooltip-anchor {
+  position: static;
+}
+
+/* Narrow cards use a shorter button label so both top corners still fit. */
+html:root:root .site-shell .stay-art {
+  container-type: inline-size;
+}
+
+.stay-photos-button .photos-label-short {
+  display: none;
+}
+
+@container (max-width: 305px) {
+  .stay-photos-button .photos-label-full {
+    display: none;
+  }
+
+  .stay-photos-button .photos-label-short {
+    display: inline;
+  }
+}
+
+/* The narrowest cards drop the small icons to keep both labels apart. */
+@container (max-width: 270px) {
+  html:root:root .site-shell .stay-art :is(.gold-glass-badge, .shared-pool-badge) {
+    padding: 0 8px;
+    letter-spacing: 0;
+  }
+
+  html:root:root .site-shell .stay-art :is(.gold-glass-badge, .shared-pool-badge, .stay-photos-button) > svg {
+    display: none;
+  }
+
+  html:root:root .site-shell .stay-art .stay-photos-button {
+    padding: 0 9px;
+  }
+}

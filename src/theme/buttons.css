@@ -1,0 +1,233 @@
+/* =========================================================================
+   Customer buttons: every action looks tappable at rest and reacts when used.
+   Uses the individual `translate` / `scale` properties so it never overrides a
+   button's own `transform` (centered arrows, for example).
+   ========================================================================= */
+:root {
+  --tap: #047857;
+  --tap-strong: #065f46;
+  --tap-soft: #e7f6ee;
+  --tap-on: #fff;
+  --tap-ring: rgba(4, 120, 87, .28);
+  --tap-shadow: 0 3px 9px rgba(6, 60, 44, .24);
+  --tap-shadow-up: 0 9px 20px rgba(6, 60, 44, .3);
+}
+
+:root[data-theme='dark'] {
+  --tap: #f2c46c;
+  --tap-strong: #e7b65a;
+  --tap-soft: rgba(242, 196, 108, .14);
+  --tap-on: #1c1608;
+  --tap-ring: rgba(242, 196, 108, .3);
+  --tap-shadow: 0 3px 10px rgba(0, 0, 0, .45);
+  --tap-shadow-up: 0 9px 22px rgba(0, 0, 0, .55);
+}
+
+/* ---- Shared motion ---- */
+:is(.site-shell, .customer-side, .geraint) :is(
+  .header-cta, .button, .text-link, .select-stay, .stay-photos-button, .showcase-select,
+  .review-button, .hold-secondary-button, .customer-booking-view-button, .receipt-print-button,
+  .proceed-bar-go, .customer-side-cta, .customer-side-row, .footer-top, .theme-toggle,
+  .guest-stepper button, .tour-option, .stay-option, .estimate-option, .geraint-chip, .geraint-send
+) {
+  cursor: pointer;
+  transition: translate .16s ease, scale .12s ease, box-shadow .16s ease, background-color .16s ease,
+    border-color .16s ease, color .16s ease, filter .16s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Hover only on devices with a mouse, so it never sticks after a tap on a phone. */
+@media (hover: hover) {
+  :is(.site-shell, .customer-side, .geraint) :is(
+    .header-cta, .button, .text-link, .select-stay, .stay-photos-button, .showcase-select,
+    .review-button, .hold-secondary-button, .customer-booking-view-button, .receipt-print-button,
+    .proceed-bar-go, .customer-side-cta, .customer-side-row, .footer-top, .theme-toggle,
+    .guest-stepper button, .geraint-chip, .geraint-send
+  ):hover:not(:disabled) {
+    translate: 0 -2px;
+    box-shadow: var(--tap-shadow-up) !important;
+    filter: brightness(1.05);
+  }
+
+  .site-shell :is(.tour-option, .stay-option, .estimate-option):hover {
+    translate: 0 -2px;
+    border-color: var(--tap);
+    box-shadow: var(--tap-shadow-up) !important;
+  }
+
+  .site-shell :is(.header-cta, .button, .text-link, .review-button, .showcase-select, .footer-top):hover:not(:disabled) svg,
+  :is(.proceed-bar-go, .customer-side-cta):hover svg {
+    translate: 3px 0;
+  }
+}
+
+.site-shell :is(.header-cta, .button, .text-link, .review-button, .showcase-select, .footer-top) svg,
+:is(.proceed-bar-go, .customer-side-cta) svg {
+  transition: translate .16s ease;
+}
+
+/* Press: the instant feedback phone users see. */
+:is(.site-shell, .customer-side, .geraint) :is(
+  .header-cta, .button, .text-link, .select-stay, .stay-photos-button, .showcase-select,
+  .review-button, .hold-secondary-button, .customer-booking-view-button, .receipt-print-button,
+  .proceed-bar-go, .customer-side-cta, .customer-side-row, .footer-top, .theme-toggle,
+  .guest-stepper button, .tour-option, .stay-option, .estimate-option, .geraint-chip, .geraint-send
+):active:not(:disabled) {
+  translate: 0 1px;
+  scale: .96;
+  box-shadow: 0 0 0 5px var(--tap-ring) !important;
+  filter: brightness(.96);
+}
+
+/* Keyboard focus */
+:is(.site-shell, .customer-side, .geraint) :is(a, button, [role='radio'], label):focus-visible,
+.site-shell :is(.tour-option, .stay-option):has(input:focus-visible) {
+  outline: 3px solid var(--tap);
+  outline-offset: 2px;
+}
+
+/* ---- Add to booking ---- */
+html:root:root .site-shell .stay-card .select-stay:not(.selected) {
+  min-height: 48px;
+  border: 2px solid var(--tap);
+  color: var(--tap-on);
+  background: var(--tap);
+  box-shadow: var(--tap-shadow);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+html:root:root .site-shell .stay-card .select-stay:not(.selected):hover {
+  border-color: var(--tap-strong);
+  color: var(--tap-on);
+  background: var(--tap-strong);
+}
+
+/* Added: visibly different from "Add", so guests can tell what they've picked. */
+html:root:root .site-shell .stay-card .select-stay.selected,
+html:root:root .site-shell .stay-card.is-exclusive .select-stay.selected,
+html:root:root .site-shell .stay-card.is-shared .select-stay.selected {
+  min-height: 48px;
+  border: 2px solid var(--tap);
+  color: var(--tap-strong);
+  background: var(--tap-soft);
+  box-shadow: none;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+html:root:root[data-theme='dark'] .site-shell .stay-card .select-stay.selected,
+html:root:root[data-theme='dark'] .site-shell .stay-card.is-exclusive .select-stay.selected,
+html:root:root[data-theme='dark'] .site-shell .stay-card.is-shared .select-stay.selected {
+  color: var(--tap);
+}
+
+/* ---- View photos ---- */
+html:root:root .site-shell .stay-photos-button {
+  min-height: 38px;
+  border: 1.5px solid var(--tap);
+  color: var(--tap-strong);
+  background: #fff;
+  box-shadow: var(--tap-shadow);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+html:root:root[data-theme='dark'] .site-shell .stay-photos-button {
+  color: var(--tap);
+  background: #17222a;
+}
+
+/* ---- Guest + / − ---- */
+html:root:root .site-shell .guest-stepper button:not(:disabled),
+html:root:root .site-shell .booking-card .guest-stepper button:not(:disabled) {
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--tap);
+  color: var(--tap-on);
+  background: var(--tap);
+  box-shadow: var(--tap-shadow);
+}
+
+html:root:root .site-shell .guest-stepper button:not(:disabled):hover,
+html:root:root .site-shell .booking-card .guest-stepper button:not(:disabled):hover {
+  border-color: var(--tap-strong);
+  color: var(--tap-on);
+  background: var(--tap-strong);
+}
+
+html:root:root .site-shell .guest-stepper button:disabled,
+html:root:root .site-shell .booking-card .guest-stepper button:disabled {
+  width: 42px;
+  height: 42px;
+}
+
+/* ---- Choice cards: tour type, accommodations, payment ---- */
+html:root:root .site-shell :is(.tour-option, .stay-option, .estimate-option) {
+  border-width: 1.5px;
+  border-color: rgba(4, 120, 87, .42);
+  box-shadow: 0 2px 6px rgba(6, 60, 44, .1);
+}
+
+html:root:root[data-theme='dark'] .site-shell :is(.tour-option, .stay-option, .estimate-option) {
+  border-color: rgba(242, 196, 108, .42);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, .35);
+}
+
+html:root:root .site-shell :is(.tour-option.is-checked, .stay-option.is-checked, .estimate-option.is-selected) {
+  border-color: var(--tap);
+  box-shadow: 0 0 0 2px var(--tap), var(--tap-shadow);
+}
+
+html:root:root .site-shell .stay-option-box {
+  border: 2px solid var(--tap);
+}
+
+html:root:root .site-shell .stay-option.is-checked .stay-option-box {
+  color: var(--tap-on);
+  background: var(--tap);
+}
+
+/* ---- Outlined actions ---- */
+html:root:root .site-shell :is(.hold-secondary-button, .customer-booking-view-button) {
+  min-height: 46px;
+  border: 2px solid var(--tap);
+  color: var(--tap-strong);
+  background: var(--tap-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+html:root:root[data-theme='dark'] .site-shell :is(.hold-secondary-button, .customer-booking-view-button) {
+  color: var(--tap);
+}
+
+/* ---- Unavailable actions must look unavailable ---- */
+.site-shell :is(button, .review-button):disabled {
+  box-shadow: none;
+  cursor: not-allowed;
+  filter: saturate(.25);
+  translate: none;
+  scale: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.site-shell, .customer-side, .geraint) :is(a, button, label, [role='radio']),
+  :is(.site-shell, .customer-side, .geraint) :is(a, button) svg {
+    transition: none;
+    translate: none !important;
+    scale: 1 !important;
+  }
+}
+
+/* Phone cards have a narrow photo panel: keep the button inside it. */
+@media (max-width: 720px) {
+  html:root:root .site-shell .stay-photos-button {
+    min-height: 36px;
+    gap: 5px;
+    padding: 0 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}

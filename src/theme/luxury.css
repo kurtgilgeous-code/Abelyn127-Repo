@@ -1,0 +1,861 @@
+/*
+ * Tampisawan · luxury twilight sanctuary layer.
+ * Loaded after brand.css. Visual only: no layout logic, state, or behavior lives here.
+ * Pointer position for the glass spotlight comes from useGlassSpotlight (hooks/useLuxuryEffects.ts).
+ */
+
+/* =========================================================================
+   1. Atmospheric canvas
+   ========================================================================= */
+:root body {
+  background:
+    radial-gradient(ellipse 60% 45% at 12% 0%, rgba(242, 194, 110, .16), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 92% 12%, rgba(125, 170, 235, .14), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 70% 100%, rgba(217, 78, 59, .05), transparent 70%),
+    linear-gradient(180deg, #faf7f2 0%, #f2ece1 100%);
+  background-attachment: fixed;
+}
+
+:root[data-theme='dark'] body {
+  background:
+    radial-gradient(ellipse 60% 45% at 10% 0%, rgba(20, 52, 203, .16), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 90% 18%, rgba(212, 175, 55, .1), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 100%, rgba(20, 52, 203, .1), transparent 70%),
+    linear-gradient(180deg, #060911 0%, #0c1322 100%);
+  background-attachment: fixed;
+}
+
+/* Slow-drifting light orbs: sunlit gold & sky by day, pool-reflection sapphire & gold by night. */
+body::before {
+  position: fixed;
+  z-index: -1;
+  inset: -15%;
+  content: '';
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 30%, rgba(242, 194, 110, .14), transparent 26%),
+    radial-gradient(circle at 78% 64%, rgba(120, 165, 235, .1), transparent 28%);
+  animation: twilight-drift 24s ease-in-out infinite alternate;
+}
+
+:root[data-theme='dark'] body::before {
+  background:
+    radial-gradient(circle at 20% 28%, rgba(37, 99, 235, .14), transparent 26%),
+    radial-gradient(circle at 80% 62%, rgba(212, 175, 55, .08), transparent 26%),
+    radial-gradient(circle at 48% 88%, rgba(59, 130, 246, .08), transparent 24%);
+}
+
+/* Night film grain */
+:root[data-theme='dark'] body::after {
+  position: fixed;
+  z-index: 9000;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  opacity: .025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes twilight-drift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, -3%, 0) scale(1.06); }
+  100% { transform: translate3d(-3%, 4%, 0) scale(1.02); }
+}
+
+/* =========================================================================
+   2. Typography
+   ========================================================================= */
+:root .hero h1,
+:root .section-heading h2,
+:root .booking-intro h2,
+:root .amenities-copy h2,
+:root .rates-heading h2,
+:root .customer-followup-copy h2,
+:root .review-modal h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -.01em;
+}
+
+:root .hero h1 em,
+:root .section-heading h2 em,
+:root .booking-intro h2 em,
+:root .amenities-copy h2 em,
+:root .rates-heading h2 em,
+:root .customer-followup-copy h2 em,
+:root .review-modal h2 em {
+  font-style: italic;
+}
+
+/* Wide-tracked champagne micro-labels */
+:root .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+}
+
+:root .eyebrow-dark { color: var(--gold); }
+:root .eyebrow-dot { background: var(--gold-bright); }
+
+/* Rates, dates and countdowns line up digit for digit */
+:root .stay-price,
+:root .estimate-box,
+:root .review-details,
+:root .hold-reference,
+:root .hold-timer-card,
+:root .guest-heading,
+:root .guest-stepper,
+:root .tour-option small,
+:root .rate-detail-card,
+:root .customer-booking-card,
+:root .earnings-card,
+:root .users-stats,
+:root .admin-booking-card,
+:root input[type='date'],
+:root time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cobalt selections & focus */
+:root input[type='date'],
+:root input[type='radio'],
+:root input[type='checkbox'] {
+  accent-color: var(--cobalt);
+}
+
+:root .booking-card input:focus-visible,
+:root .booking-card select:focus-visible,
+:root .lookup-form input:focus-visible,
+:root .login-card input:focus-visible {
+  border-color: var(--cobalt);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--cobalt-soft);
+}
+
+:root .tour-option.is-checked {
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 2px var(--cobalt-soft);
+}
+
+:root .tour-option.is-checked svg { color: var(--cobalt); }
+:root[data-theme='dark'] .tour-option.is-checked svg { color: #60a5fa; }
+
+/* =========================================================================
+   3. Glass surfaces + cursor spotlight
+   ========================================================================= */
+:root .hero-showcase,
+:root .stay-card,
+:root .booking-card,
+:root .followup-card,
+:root .amenity-panel,
+:root .rate-detail-card,
+:root .login-card,
+:root .earnings-card,
+:root .admin-booking-card,
+:root .users-panel,
+:root .users-stats > div,
+:root .review-modal {
+  position: relative;
+  isolation: isolate;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+:root .stay-card,
+:root .booking-card,
+:root .followup-card,
+:root .amenity-panel,
+:root .rate-detail-card,
+:root .login-card,
+:root .earnings-card,
+:root .admin-booking-card,
+:root .users-panel,
+:root .users-stats > div {
+  border-color: rgba(11, 18, 33, .08);
+  border-top-color: #fff;
+  background-color: rgba(255, 255, 255, .74);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 20px 50px rgba(11, 18, 33, .07);
+}
+
+:root[data-theme='dark'] .stay-card,
+:root[data-theme='dark'] .booking-card,
+:root[data-theme='dark'] .followup-card,
+:root[data-theme='dark'] .amenity-panel,
+:root[data-theme='dark'] .rate-detail-card,
+:root[data-theme='dark'] .login-card,
+:root[data-theme='dark'] .earnings-card,
+:root[data-theme='dark'] .admin-booking-card,
+:root[data-theme='dark'] .users-panel,
+:root[data-theme='dark'] .users-stats > div {
+  border-color: rgba(255, 255, 255, .07);
+  border-top-color: rgba(255, 255, 255, .2);
+  background-color: rgba(12, 19, 34, .62);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 24px 60px rgba(0, 0, 0, .42);
+}
+
+/* Gentle lift on hover (uses `translate`, so it never fights AOS's `transform`) */
+:root .hero-showcase,
+:root .stay-card,
+:root .booking-card,
+:root .followup-card,
+:root .amenity-panel,
+:root .rate-detail-card,
+:root .earnings-card,
+:root .admin-booking-card,
+:root .users-stats > div {
+  transition: opacity .7s cubic-bezier(.215, .61, .355, 1), transform .7s cubic-bezier(.215, .61, .355, 1), translate .5s cubic-bezier(.22, .8, .24, 1), box-shadow .5s ease, border-color .5s ease;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :root .hero-showcase:hover,
+  :root .stay-card:hover,
+  :root .booking-card:hover,
+  :root .followup-card:hover,
+  :root .amenity-panel:hover,
+  :root .rate-detail-card:hover,
+  :root .earnings-card:hover,
+  :root .admin-booking-card:hover,
+  :root .users-stats > div:hover {
+    translate: 0 -4px;
+  }
+
+  :root .stay-card:hover,
+  :root .booking-card:hover,
+  :root .rate-detail-card:hover,
+  :root .earnings-card:hover {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 28px 60px rgba(11, 18, 33, .1);
+  }
+
+  :root[data-theme='dark'] .stay-card:hover,
+  :root[data-theme='dark'] .booking-card:hover,
+  :root[data-theme='dark'] .rate-detail-card:hover,
+  :root[data-theme='dark'] .earnings-card:hover {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .08) inset, 0 30px 70px rgba(0, 0, 0, .5);
+  }
+
+  /* Spotlight: a soft champagne / sapphire sheen that follows the pointer… */
+  :root :is(.hero-showcase, .stay-card, .booking-card, .followup-card, .amenity-panel, .rate-detail-card, .login-card, .earnings-card, .admin-booking-card, .users-panel, .users-stats > div, .review-modal)::after {
+    position: absolute;
+    z-index: 5;
+    inset: 0;
+    content: '';
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    background: radial-gradient(480px circle at var(--mouse-x, 50%) var(--mouse-y, 0%), rgba(212, 175, 55, .09), rgba(20, 52, 203, .04) 40%, transparent 65%);
+    transition: opacity .45s ease;
+  }
+
+  /* …and lights the hairline border nearest to it. */
+  :root :is(.hero-showcase, .stay-card, .booking-card, .followup-card, .amenity-panel, .rate-detail-card, .login-card, .earnings-card, .admin-booking-card, .users-panel, .users-stats > div, .review-modal)::before {
+    position: absolute;
+    z-index: 5;
+    inset: 0;
+    padding: 1px;
+    content: '';
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    background: radial-gradient(260px circle at var(--mouse-x, 50%) var(--mouse-y, 0%), rgba(229, 193, 88, .85), rgba(59, 130, 246, .4) 45%, transparent 75%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    transition: opacity .45s ease;
+  }
+
+  :root[data-theme='dark'] :is(.hero-showcase, .stay-card, .booking-card, .followup-card, .amenity-panel, .rate-detail-card, .login-card, .earnings-card, .admin-booking-card, .users-panel, .users-stats > div, .review-modal)::after {
+    background: radial-gradient(480px circle at var(--mouse-x, 50%) var(--mouse-y, 0%), rgba(229, 193, 88, .08), rgba(37, 99, 235, .07) 40%, transparent 65%);
+  }
+
+  :root :is(.hero-showcase, .stay-card, .booking-card, .followup-card, .amenity-panel, .rate-detail-card, .login-card, .earnings-card, .admin-booking-card, .users-panel, .users-stats > div, .review-modal):hover::after,
+  :root :is(.hero-showcase, .stay-card, .booking-card, .followup-card, .amenity-panel, .rate-detail-card, .login-card, .earnings-card, .admin-booking-card, .users-panel, .users-stats > div, .review-modal):hover::before {
+    opacity: 1;
+  }
+}
+
+/* Selected accommodation stays cobalt all round (after the white specular top edge) */
+:root .stay-card.is-selected,
+:root[data-theme='dark'] .stay-card.is-selected {
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 2px var(--cobalt-soft), 0 20px 50px rgba(20, 52, 203, .12);
+}
+
+/* =========================================================================
+   4. Sticky frosted navbar, scroll progress, role badge
+   ========================================================================= */
+:root .site-header {
+  border-bottom-color: rgba(11, 18, 33, .07);
+  background: rgba(250, 247, 242, .72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+:root[data-theme='dark'] .site-header {
+  border-bottom-color: rgba(255, 255, 255, .07);
+  background: rgba(6, 9, 17, .7);
+}
+
+.nav-progress {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, #d4af37, var(--cta));
+  box-shadow: 0 0 10px rgba(229, 193, 88, .45);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+:root .header-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid rgba(20, 52, 203, .3);
+  border-radius: 999px;
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+:root[data-theme='dark'] .header-role-badge {
+  border-color: rgba(96, 165, 250, .35);
+  color: #93c5fd;
+}
+
+.header-role-badge.is-admin,
+:root[data-theme='dark'] .header-role-badge.is-admin {
+  border-color: rgba(212, 175, 55, .5);
+  color: var(--gold);
+  background: var(--gold-soft);
+}
+
+:root .theme-toggle {
+  border: 1px solid rgba(212, 175, 55, .35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+:root[data-theme='dark'] .theme-toggle {
+  border-color: rgba(229, 193, 88, .3);
+  background: rgba(255, 255, 255, .05);
+}
+
+/* =========================================================================
+   5. Primary CTAs: diagonal champagne sweep + press feedback
+   ========================================================================= */
+:root .header-cta,
+:root .review-button,
+:root .auth-submit-button,
+:root .button-light,
+:root .walkin-submit-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: scale .18s ease, box-shadow .3s ease, background .3s ease;
+}
+
+:root .header-cta::after,
+:root .review-button::after,
+:root .auth-submit-button::after,
+:root .button-light::after,
+:root .walkin-submit-button::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 236, 190, .55) 48%, rgba(255, 255, 255, .2) 52%, transparent 68%);
+  transform: translateX(-130%);
+  transition: transform .9s cubic-bezier(.22, .8, .24, 1);
+}
+
+:root .header-cta:hover::after,
+:root .review-button:hover:not(:disabled)::after,
+:root .auth-submit-button:hover:not(:disabled)::after,
+:root .button-light:hover::after,
+:root .walkin-submit-button:hover:not(:disabled)::after {
+  transform: translateX(130%);
+}
+
+:root .header-cta:active,
+:root .review-button:active:not(:disabled),
+:root .auth-submit-button:active:not(:disabled),
+:root .button-light:active,
+:root .walkin-submit-button:active:not(:disabled) {
+  scale: .98;
+}
+
+/* Hero CTA: coral like the other primary actions */
+:root .hero .button-light {
+  border-color: rgba(255, 255, 255, .22);
+  color: #fff;
+  background: linear-gradient(135deg, #e05a47, #c9432f);
+  box-shadow: 0 12px 30px rgba(224, 90, 71, .35);
+}
+
+:root[data-theme='dark'] .hero .button-light {
+  background: linear-gradient(135deg, #f06a57, #e0553f);
+}
+
+/* =========================================================================
+   6. Hero: twilight private-pool showcase frame
+   ========================================================================= */
+:root .hero-showcase {
+  z-index: 1;
+  width: min(100%, 500px);
+  margin-top: 46px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-top-color: rgba(255, 255, 255, .34);
+  border-radius: 36px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03));
+  box-shadow: 0 30px 80px rgba(2, 6, 23, .45), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+:root .hero-art {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  height: clamp(280px, 30vw, 400px);
+  opacity: 1;
+  overflow: hidden;
+  border: 0;
+  border-radius: 46% 46% 24px 24px / 34% 34% 24px 24px;
+  background:
+    radial-gradient(ellipse 70% 30% at 62% 58%, rgba(244, 166, 104, .55), transparent 70%),
+    linear-gradient(180deg, #050a24 0%, #0d1a52 30%, #2b2f73 46%, #8a557a 56%, #e58f62 63%, #f3c27c 66%, #1a2047 67%, #10173a 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+
+.art-sky-glow {
+  position: absolute;
+  inset: 0 0 45% 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1.4px 1.4px at 14% 18%, rgba(255, 255, 255, .9), transparent),
+    radial-gradient(1px 1px at 32% 9%, rgba(255, 255, 255, .7), transparent),
+    radial-gradient(1.2px 1.2px at 47% 24%, rgba(255, 255, 255, .8), transparent),
+    radial-gradient(1px 1px at 66% 12%, rgba(255, 255, 255, .6), transparent),
+    radial-gradient(1.4px 1.4px at 84% 28%, rgba(255, 244, 214, .9), transparent),
+    radial-gradient(1px 1px at 24% 36%, rgba(255, 255, 255, .5), transparent),
+    radial-gradient(1px 1px at 76% 40%, rgba(255, 255, 255, .5), transparent);
+  animation: stars-twinkle 7s ease-in-out infinite alternate;
+}
+
+:root .art-hill { z-index: 1; bottom: 33%; height: 15%; }
+:root .art-hill-back { left: -14%; width: 70%; transform: rotate(2deg); }
+:root .art-hill-front { right: -20%; width: 66%; height: 11%; transform: rotate(-3deg); }
+
+:root .art-sun {
+  z-index: 0;
+  top: 49%;
+  right: 34%;
+  width: 70px;
+  height: 70px;
+  background: radial-gradient(circle, #fff1d0 0%, #f7c983 45%, rgba(240, 150, 100, .9) 70%, rgba(240, 150, 100, 0) 72%);
+  box-shadow: 0 0 70px 26px rgba(244, 166, 104, .32);
+}
+
+:root .art-hill-back { background: #182152; }
+:root .art-hill-front { background: #111940; }
+:root .art-palm i { background: #0a102e; }
+:root .art-palm b { background: linear-gradient(90deg, #1a1838, #3b2c4a, #15142c); }
+
+:root .art-pool {
+  border-top: 4px solid rgba(255, 222, 170, .85);
+  background: linear-gradient(180deg, #2f62e8 0%, #1d3fb8 40%, #0f2470 100%);
+  box-shadow: 0 -8px 30px rgba(255, 200, 130, .25);
+}
+
+:root .art-pool span { background: rgba(255, 230, 190, .55); }
+
+/* Water-shimmer reflections on the pool */
+.art-shimmer {
+  position: absolute;
+  height: 3px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255, 235, 200, .75), transparent);
+  filter: blur(.4px);
+  animation: pool-shimmer 6s ease-in-out infinite;
+}
+
+.shimmer-one { top: 34px; left: 26%; width: 34%; }
+.shimmer-two { top: 50px; left: 46%; width: 26%; animation-delay: -2s; animation-duration: 7.5s; }
+.shimmer-three { top: 66px; left: 18%; width: 22%; animation-delay: -4s; animation-duration: 5.5s; }
+
+/* Warm lanterns on the pool deck */
+.art-lantern {
+  position: absolute;
+  z-index: 2;
+  bottom: 30%;
+  width: 8px;
+  height: 12px;
+  border-radius: 3px;
+  background: #ffd796;
+  box-shadow: 0 0 14px 6px rgba(255, 196, 110, .55), 0 0 60px 22px rgba(255, 170, 80, .2);
+  animation: lantern-flicker 4.5s ease-in-out infinite;
+}
+
+.art-lantern::after {
+  position: absolute;
+  top: 12px;
+  left: 3px;
+  width: 2px;
+  height: 34px;
+  content: '';
+  background: #0c1230;
+}
+
+.lantern-one { left: 30%; }
+.lantern-two { right: 26%; bottom: 33%; animation-delay: -1.7s; }
+
+:root .art-caption {
+  border-color: rgba(255, 255, 255, .22);
+  border-radius: 999px;
+  background: rgba(6, 10, 30, .5);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 12px;
+}
+
+@media (min-width: 1024px) {
+  :root .hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+    align-items: center;
+    justify-items: stretch;
+    column-gap: clamp(32px, 4vw, 72px);
+    padding-right: clamp(40px, 5vw, 84px);
+    padding-left: clamp(40px, 5vw, 84px);
+  }
+
+  :root .hero-copy {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  :root .hero-copy .resort-logo-hero { margin-left: -6px; }
+  :root .hero-actions,
+  :root .hero-trust { justify-content: flex-start; }
+
+  :root .hero-showcase {
+    justify-self: end;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  :root .hero-showcase { width: 100%; margin-top: 36px; padding: 9px; border-radius: 28px; }
+  :root .hero-art { position: relative; right: auto; bottom: auto; width: 100%; height: 240px; opacity: 1; }
+}
+
+@keyframes pool-shimmer {
+  0%, 100% { opacity: .25; transform: translateX(-12%) scaleX(.85); }
+  50% { opacity: .95; transform: translateX(12%) scaleX(1.1); }
+}
+
+@keyframes lantern-flicker {
+  0%, 100% { opacity: 1; }
+  40% { opacity: .82; }
+  60% { opacity: .95; }
+  80% { opacity: .78; }
+}
+
+@keyframes stars-twinkle {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+
+/* =========================================================================
+   7. Accommodation cards
+   ========================================================================= */
+:root .gold-glass-badge,
+:root .shared-pool-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:root .shared-pool-badge { background: rgba(20, 52, 203, .85); }
+:root[data-theme='dark'] .shared-pool-badge { background: rgba(37, 99, 235, .85); }
+
+:root .stay-capacity,
+:root .fee-pill,
+:root .stay-photos-button {
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(11, 18, 33, .5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-variant-numeric: tabular-nums;
+}
+
+:root .stay-price strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+/* =========================================================================
+   8. Checkout modal: smoked glass + scale-in
+   ========================================================================= */
+:root .modal-backdrop {
+  background: rgba(6, 9, 17, .55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: backdrop-in .3s ease both;
+}
+
+:root .review-modal {
+  border: 1px solid rgba(11, 18, 33, .08);
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 40px 100px rgba(6, 9, 17, .35);
+  animation: modal-in .38s cubic-bezier(.2, .8, .3, 1) backwards;
+}
+
+:root[data-theme='dark'] .review-modal {
+  border-color: rgba(255, 255, 255, .08);
+  border-top-color: rgba(255, 255, 255, .22);
+  background: rgba(12, 19, 34, .88);
+  box-shadow: 0 40px 110px rgba(0, 0, 0, .6);
+}
+
+:root .receipt-modal {
+  animation: modal-in .38s cubic-bezier(.2, .8, .3, 1) backwards;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* =========================================================================
+   9. Login card
+   ========================================================================= */
+:root .login-card {
+  border-radius: 24px;
+}
+
+/* =========================================================================
+   10. Geraint concierge: gold-ring avatar glow + frosted drawer
+   ========================================================================= */
+:root .geraint-launcher .geraint-avatar,
+:root .geraint-header .geraint-avatar {
+  box-shadow: 0 0 0 2px #e5c158, 0 0 0 5px rgba(229, 193, 88, .18), 0 0 22px 4px rgba(229, 193, 88, .32);
+}
+
+:root .geraint-launcher .geraint-avatar {
+  animation: geraint-glow 3.6s ease-in-out infinite;
+}
+
+:root .geraint-launcher {
+  border-color: rgba(212, 175, 55, .35);
+  border-top-color: rgba(255, 255, 255, .7);
+}
+
+:root[data-theme='dark'] .geraint-launcher {
+  border-top-color: rgba(255, 255, 255, .22);
+}
+
+:root .geraint-panel {
+  border-color: rgba(11, 18, 33, .08);
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .74);
+  box-shadow: 0 30px 80px rgba(11, 18, 33, .18);
+  backdrop-filter: blur(40px) saturate(170%);
+  -webkit-backdrop-filter: blur(40px) saturate(170%);
+}
+
+:root[data-theme='dark'] .geraint-panel {
+  border-color: rgba(255, 255, 255, .08);
+  border-top-color: rgba(255, 255, 255, .22);
+  background: rgba(12, 19, 34, .74);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .55);
+}
+
+@keyframes geraint-glow {
+  0%, 100% { box-shadow: 0 0 0 2px #e5c158, 0 0 0 5px rgba(229, 193, 88, .16), 0 0 16px 2px rgba(229, 193, 88, .25); }
+  50% { box-shadow: 0 0 0 2px #f3d06b, 0 0 0 6px rgba(229, 193, 88, .24), 0 0 28px 6px rgba(229, 193, 88, .42); }
+}
+
+/* =========================================================================
+   Motion & print safety
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  .art-sky-glow,
+  .art-shimmer,
+  .art-lantern,
+  :root .geraint-launcher .geraint-avatar,
+  :root .review-modal,
+  :root .receipt-modal,
+  :root .modal-backdrop {
+    animation: none;
+  }
+}
+
+@media print {
+  body::before,
+  body::after,
+  .nav-progress { display: none; }
+}
+
+/* =========================================================================
+   Phone view
+   ========================================================================= */
+.badge-label-short { display: none; }
+
+@media (max-width: 720px) {
+  /* Narrow photo column on the stay cards: stack badge, photos button, fee pill */
+  :root .stay-art .gold-glass-badge,
+  :root .stay-art .shared-pool-badge {
+    top: 10px;
+    left: 10px;
+    padding: 5px 9px;
+    font-size: 8.5px;
+    letter-spacing: .12em;
+    white-space: nowrap;
+  }
+
+  .badge-label-full { display: none; }
+  .badge-label-short { display: inline; }
+
+  :root .stay-art .stay-photos-button {
+    top: 42px;
+    right: auto;
+    left: 10px;
+    white-space: nowrap;
+  }
+
+  :root .stay-art .fee-pill {
+    top: 76px;
+    right: auto;
+    bottom: auto;
+    left: 10px;
+    white-space: nowrap;
+  }
+
+  :root .stay-art .stay-art-icon {
+    top: auto;
+    bottom: 58px;
+    left: 10px;
+    transform: none;
+  }
+
+  /* Text scrolling under the header shouldn't show through on small screens */
+  :root .site-header { background: rgba(250, 247, 242, .97); }
+  :root[data-theme='dark'] .site-header { background: rgba(6, 9, 17, .97); }
+}
+
+/* =========================================================================
+   Rates: three cards in one row, price rows you can scan (both themes)
+   ========================================================================= */
+:root .rate-details { grid-template-columns: 1fr; align-items: stretch; }
+
+@media (min-width: 1024px) {
+  :root .rate-details { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+:root .rate-detail-card {
+  min-height: 0;
+  padding: 22px;
+  gap: 14px;
+}
+
+:root .rate-detail-card > div { flex: 1; min-width: 0; }
+
+:root .rate-detail-card b {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+:root .rate-time {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+:root .rate-prices,
+:root .rate-pax-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+:root .rate-prices li,
+:root .rate-pax-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+:root .rate-prices strong,
+:root .rate-pax-list strong {
+  color: var(--accent-gold);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+:root .rate-pax-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 18px;
+}
+
+:root .rate-pax-list li { padding: 6px 0; font-size: 11.5px; }
+:root .rate-pax-list strong { font-size: 13px; }
+
+:root .rate-detail-card p {
+  margin-top: 12px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 380px) {
+  :root .rate-pax-list { grid-template-columns: 1fr; }
+}
+
+/* Text that sits straight on the page background stays above the mango trees and falling leaves */
+:root :is(.section-heading, .amenities-copy, .rates-inner, .booking-intro, .customer-followup-copy, .intro-strip > *) {
+  position: relative;
+  z-index: 1;
+}
+
+:root .rates-caveat {
+  max-width: 920px;
+  font-size: 11px;
+  line-height: 1.7;
+}

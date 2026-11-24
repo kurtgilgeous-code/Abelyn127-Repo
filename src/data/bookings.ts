@@ -1,7 +1,10 @@
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'DATE_UNAVAILABLE'
-export type PaymentStatus = 'UNPAID' | 'PENDING_REVIEW' | 'PARTIALLY_PAID' | 'PAID' | 'NOT_PAID' | 'VOID'
+export type BookingStatus =
+  | 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'DATE_UNAVAILABLE'
+  | 'PENDING_HOLD' | 'EXPIRED' | 'CANCELLED_BY_GCASH_PRIORITY'
+export type PaymentStatus = 'UNPAID' | 'PENDING_REVIEW' | 'PARTIALLY_PAID' | 'PAID' | 'PAID_CASH' | 'NOT_PAID' | 'VOID'
 export type PaymentMethod = 'GCASH' | 'MAYA' | 'BANK_TRANSFER' | 'OTHER' | 'CASH'
 export type TourType = 'OVERNIGHT' | 'DAY_TOUR' | 'NIGHT_TOUR'
+export type PaymentTier = 'ONLINE_GCASH_RESERVATION' | 'WALKIN_CASH_NO_RESERVATION' | 'PENDING_CASH_INQUIRY'
 export const tourDetails: Record<TourType, { label: string; checkIn: string; checkOut: string; duration: string }> = {
   OVERNIGHT: { label: 'Overnight', checkIn: '2:00 PM', checkOut: '12:00 NN', duration: '22 hours' },
   DAY_TOUR: { label: 'Day Tour', checkIn: '7:00 AM', checkOut: '5:00 PM', duration: '10 hours' },
@@ -30,10 +33,20 @@ export interface BookingPayment {
 
 export interface Booking {
   id: string
+  referenceNumber: string
+  paymentTier: PaymentTier | null
+  baseResortPrice: number
+  baseDepositAmount: number
+  gatewayFeeAmount: number
+  totalOnlinePaid: number
+  cashBalanceDue: number
+  gatewayPaymentId: string | null
   createdAt: string
   customerName: string
   customerContact: string
   accommodationId: string
+  /** Every accommodation in this booking (one booking can combine several). */
+  accommodationIds: string[]
   accommodationName: string
   tourType: TourType
   checkInDate: string
@@ -44,6 +57,8 @@ export interface Booking {
     children: number
   }
   guestCount: number
+  /** Guests added beyond the rooms' pax, by type (they pay entrance); null on older bookings. */
+  extraGuests: { adults: number; seniorsPwd: number; children: number } | null
   estimatedTotal: number
   depositRequired: number
   paymentAmount: number | null
@@ -55,6 +70,32 @@ export interface Booking {
   paymentReference: string
   proofFileName: string | null
   hasPaymentProof: boolean
+  /** When a walk-in voucher expires (ISO timestamp); null for other bookings. */
+  expiresAt: string | null
+  /** 1 = GCash reservation / confirmed cash, 2 = walk-in voucher. */
+  priorityRank: number | null
+  /** Original TRP-HOLD reference of a hold the admin later confirmed with cash. */
+  holdReferenceNumber: string | null
+}
+
+/** Milliseconds left on a pending hold (0 once expired). */
+export function holdMillisecondsLeft(expiresAt: string | null, now: number) {
+  if (!expiresAt) return 0
+  return Math.max(0, Date.parse(expiresAt) - now)
+}
+
+/** "18h 42m" style countdown for a pending hold. */
+export function formatHoldTimeLeft(milliseconds: number) {
+  const totalMinutes = Math.ceil(milliseconds / 60_000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours >= 24) return Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h'
+  return hours > 0 ? hours + 'h ' + String(minutes).padStart(2, '0') + 'm' : minutes + 'm'
+}
+
+/** A hold that is still PENDING_HOLD and inside its validity window. */
+export function isActiveHold(booking: Pick<Booking, 'status' | 'expiresAt'>, now: number) {
+  return booking.status === 'PENDING_HOLD' && holdMillisecondsLeft(booking.expiresAt, now) > 0
 }
 
 export function formatBookingDate(date: string) {

@@ -1,0 +1,419 @@
+/* =========================================================================
+   Sunlit Limestone & Poolside Mango Grove — Day (light) mode only.
+   Every rule is scoped to light mode; Night mode (Midnight Navy) is untouched.
+   ========================================================================= */
+
+/* ---------- 1. Open-air hero: warm travertine & alabaster sand ---------- */
+:root:not([data-theme='dark']) .hero {
+  overflow: visible;
+  padding-top: 92px;
+  border: 1px solid #e6dec8;
+  color: #0b1221;
+  background: linear-gradient(135deg, #fffdf9 0%, #f7f1e5 55%, #efe6d5 100%);
+  box-shadow: 0 30px 70px rgba(120, 92, 40, .1), inset 0 1px 0 #fff;
+}
+
+/* Warm sun pooling in the top-left corner */
+:root:not([data-theme='dark']) .hero::before {
+  background:
+    radial-gradient(ellipse 60% 55% at 8% 0%, rgba(253, 224, 71, .22), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 92% 100%, rgba(195, 221, 253, .35), transparent 70%);
+}
+
+/* Diagonal sunbeams falling across the hero */
+:root:not([data-theme='dark']) .hero::after {
+  display: block;
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  background:
+    linear-gradient(125deg, rgba(253, 224, 71, .16), transparent 65%),
+    repeating-linear-gradient(125deg, transparent 0 70px, rgba(255, 236, 170, .2) 70px 110px, transparent 110px 210px);
+  filter: blur(6px);
+  -webkit-mask: linear-gradient(125deg, #000 0%, rgba(0, 0, 0, .5) 40%, transparent 70%);
+  mask: linear-gradient(125deg, #000 0%, rgba(0, 0, 0, .5) 40%, transparent 70%);
+  animation: hero-beams 10s ease-in-out infinite alternate;
+}
+
+@keyframes hero-beams {
+  from { opacity: .6; }
+  to { opacity: 1; }
+}
+
+:root:not([data-theme='dark']) .hero-copy .eyebrow { color: #9a6b16; }
+:root:not([data-theme='dark']) .hero h1 { color: #0b1221; }
+:root:not([data-theme='dark']) .hero h1 em { color: #b48327; }
+:root:not([data-theme='dark']) .hero-copy > p { color: #475569; }
+:root:not([data-theme='dark']) .hero-hours { color: #334155; }
+:root:not([data-theme='dark']) .hero-hours svg { color: #b48327; }
+:root:not([data-theme='dark']) .hero-trust { color: #475569; }
+:root:not([data-theme='dark']) .hero-trust svg { color: #b48327; }
+:root:not([data-theme='dark']) .hero-scroll { color: #64748b; }
+:root:not([data-theme='dark']) .hero-scroll span { background: #b48327; }
+:root:not([data-theme='dark']) .resort-logo-hero { filter: drop-shadow(0 12px 22px rgba(120, 92, 40, .16)); }
+
+/* ---------- Primary CTAs: coral-terracotta with a champagne-gold sweep ---------- */
+:root:not([data-theme='dark']) .header-cta,
+:root:not([data-theme='dark']) .hero .button-light,
+:root:not([data-theme='dark']) .review-button:not(:disabled) {
+  border-color: rgba(217, 78, 59, .4);
+  color: #fff;
+  background: linear-gradient(135deg, #e0604b, #d94e3b 55%, #c4402e);
+  box-shadow: 0 12px 28px rgba(217, 78, 59, .28);
+}
+
+:root:not([data-theme='dark']) :is(.header-cta, .button-light, .review-button, .auth-submit-button, .walkin-submit-button)::after {
+  background: linear-gradient(115deg, transparent 30%, rgba(246, 223, 160, .7) 47%, rgba(255, 248, 225, .35) 53%, transparent 68%);
+}
+
+/* ---------- 2. Showcase frame & daytime scenes ---------- */
+:root:not([data-theme='dark']) .hero-showcase {
+  border-color: rgba(255, 255, 255, .9);
+  background: rgba(255, 255, 255, .55);
+  box-shadow: 0 30px 70px rgba(120, 92, 40, .16), inset 0 1px 0 #fff;
+}
+
+:root:not([data-theme='dark']) .showcase-stage { background: #bfe3f7; }
+
+:root:not([data-theme='dark']) .showcase-shade {
+  background:
+    linear-gradient(180deg, rgba(11, 18, 33, .16) 0%, transparent 20%),
+    linear-gradient(0deg, rgba(11, 18, 33, .22) 0%, transparent 40%);
+}
+
+:root:not([data-theme='dark']) .showcase-scene {
+  --sky-1: #6fbdf0;
+  --sky-2: #b5def6;
+  --sky-3: #fdeccb;
+  --glow: rgba(255, 238, 180, .7);
+  background:
+    radial-gradient(ellipse 70% 32% at 50% 53%, var(--glow), transparent 70%),
+    linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 34%, var(--sky-3) 55%, #8fc27a 56%, #6fa65e 100%);
+}
+
+:root:not([data-theme='dark']) .scene-balai { --sky-1: #5fb2ee; --sky-2: #a9d8f5; --sky-3: #e8f4fb; }
+:root:not([data-theme='dark']) .scene-bahay { --sky-1: #7cc4ef; --sky-2: #c7e6f5; --sky-3: #fde3bd; }
+:root:not([data-theme='dark']) .scene-kubo { --sky-1: #69bde9; --sky-2: #b8e2f2; --sky-3: #eaf6e4; }
+
+:root:not([data-theme='dark']) .scene-stars,
+:root:not([data-theme='dark']) .art-sky-glow { display: none; }
+
+/* The moon becomes a bright midday sun */
+:root:not([data-theme='dark']) .scene-moon,
+:root:not([data-theme='dark']) .scene-bahay .scene-moon {
+  top: 12%;
+  right: 14%;
+  width: 52px;
+  height: 52px;
+  background: radial-gradient(circle, #fffef5 0%, #fff3b8 45%, #fde047 100%);
+  box-shadow: 0 0 50px 18px rgba(253, 224, 71, .45), 0 0 120px 40px rgba(255, 244, 200, .5);
+}
+
+:root:not([data-theme='dark']) .scene-hills { background: #79b06a; }
+:root:not([data-theme='dark']) .scene-kubo .scene-hills { background: #5f9d63; }
+
+:root:not([data-theme='dark']) .scene-body { background: #f3ead8; }
+:root:not([data-theme='dark']) .scene-aframe .scene-body { background: #3a4660; }
+:root:not([data-theme='dark']) .scene-windows {
+  background: linear-gradient(160deg, #eef8fe, #a9d4ee 60%, #7fb8dc);
+  box-shadow: none;
+}
+
+:root:not([data-theme='dark']) .scene-aframe .scene-windows {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 30px, #3a4660 30px 34px),
+    repeating-linear-gradient(180deg, transparent 0 42px, #3a4660 42px 46px),
+    linear-gradient(160deg, #f4fbff, #b6dcf1 55%, #ffe6a8);
+}
+
+:root:not([data-theme='dark']) .scene-balai .scene-roof { background: linear-gradient(180deg, #2449e0, #1434cb); }
+:root:not([data-theme='dark']) .scene-bahay .scene-roof { background: linear-gradient(180deg, #d06a4c, #a9482f); }
+:root:not([data-theme='dark']) .scene-kubo .scene-body { background: rgba(120, 90, 50, .35); }
+:root:not([data-theme='dark']) .scene-kubo .scene-windows { background: radial-gradient(ellipse at 50% 60%, rgba(255, 236, 190, .8), transparent 75%); }
+
+:root:not([data-theme='dark']) .scene-lantern { opacity: .55; box-shadow: none; animation: none; }
+:root:not([data-theme='dark']) .scene-lantern::after { background: #6b5a45; }
+
+:root:not([data-theme='dark']) .scene-water,
+:root:not([data-theme='dark']) .art-pool {
+  border-top-color: #f6eedc;
+  background: linear-gradient(180deg, #7fd3f5 0%, #3aa6e3 45%, #1f78c4 100%);
+  box-shadow: none;
+}
+
+:root:not([data-theme='dark']) .scene-kubo .scene-water {
+  background: linear-gradient(180deg, #84dbe6 0%, #39acc9 50%, #1f80a8 100%);
+}
+
+:root:not([data-theme='dark']) :is(.scene-water i, .art-shimmer) {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .9), transparent);
+}
+
+/* Private pool slide in daylight */
+:root:not([data-theme='dark']) .hero-art.showcase-pool-art {
+  background:
+    radial-gradient(ellipse 70% 30% at 62% 58%, rgba(255, 238, 180, .6), transparent 70%),
+    linear-gradient(180deg, #6fbdf0 0%, #9fd3f3 35%, #d9eff8 56%, #fdeccb 64%, #f6eedc 66.5%, #7fd3f5 67.5%, #3aa6e3 82%, #1f78c4 100%);
+}
+
+:root:not([data-theme='dark']) .art-sun {
+  top: 30%;
+  background: radial-gradient(circle, #fffef5 0%, #fff3b8 45%, #fde047 70%, rgba(253, 224, 71, 0) 72%);
+  box-shadow: 0 0 60px 22px rgba(253, 224, 71, .4);
+}
+
+:root:not([data-theme='dark']) .art-hill-back { background: #79b06a; }
+:root:not([data-theme='dark']) .art-hill-front { background: #5f9d55; }
+:root:not([data-theme='dark']) .art-palm i { background: #3f7a3a; }
+:root:not([data-theme='dark']) .art-palm b { background: linear-gradient(90deg, #7a5636, #9b7148, #6b4a2f); }
+:root:not([data-theme='dark']) .art-lantern { opacity: .5; box-shadow: none; animation: none; }
+
+/* Frosted pills and controls on a bright sky */
+:root:not([data-theme='dark']) .showcase-pill-duration {
+  border-color: rgba(255, 255, 255, .9);
+  color: #0f172a;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .1);
+}
+
+:root:not([data-theme='dark']) .showcase-pill-duration svg { color: #b48327; }
+
+:root:not([data-theme='dark']) .showcase-pill-tier.is-gold {
+  border-color: #e9d49b;
+  color: #9a6b16;
+  background: linear-gradient(135deg, #fffaf0, #f6e7c1);
+  box-shadow: 0 6px 18px rgba(180, 131, 39, .22);
+}
+
+:root:not([data-theme='dark']) .showcase-pill-tier.is-cobalt {
+  border-color: rgba(255, 255, 255, .6);
+  background: #1434cb;
+}
+
+:root:not([data-theme='dark']) .showcase-dots,
+:root:not([data-theme='dark']) .showcase-toggle {
+  border-color: rgba(255, 255, 255, .9);
+  color: #0f172a;
+  background: rgba(255, 255, 255, .78);
+}
+
+:root:not([data-theme='dark']) .showcase-dot { background: rgba(15, 23, 42, .22); }
+:root:not([data-theme='dark']) .showcase-dot.is-active { background: rgba(15, 23, 42, .12); }
+
+:root:not([data-theme='dark']) .showcase-info {
+  border-color: #e6dec8;
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, .14);
+}
+
+/* ---------- 3. Sunlit accommodation cards ---------- */
+:root:not([data-theme='dark']) .stay-card {
+  border-color: #e6dec8;
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .06);
+}
+
+:root:not([data-theme='dark']) .stay-card:hover {
+  border-color: #dccfa9;
+  box-shadow: 0 22px 46px rgba(120, 92, 40, .12);
+}
+
+/* Header washes: champagne & sunlit gold (exclusive) / clear pool azure (shared) */
+:root:not([data-theme='dark']) .stay-card.is-exclusive .stay-art {
+  background: linear-gradient(135deg, #fdf8eb 0%, #f6e7c1 55%, #ecd49a 100%);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-shared .stay-art {
+  background: linear-gradient(135deg, #f2fbf5 0%, #dcf5e5 55%, #bfeacf 100%);
+}
+
+/* A sun glint top-right and a soft diagonal beam instead of the overcast blobs */
+:root:not([data-theme='dark']) .stay-art::before {
+  top: -110px;
+  right: -60px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 65%);
+}
+
+:root:not([data-theme='dark']) .stay-art::after {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: repeating-linear-gradient(125deg, transparent 0 46px, rgba(255, 255, 255, .32) 46px 66px, transparent 66px 130px);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-exclusive .stay-art-icon {
+  border-color: rgba(255, 255, 255, .95);
+  color: #9a6b16;
+  background: rgba(255, 255, 255, .7);
+  box-shadow: 0 6px 16px rgba(180, 131, 39, .18);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-shared .stay-art-icon {
+  border-color: rgba(255, 255, 255, .95);
+  color: #047857;
+  background: rgba(255, 255, 255, .7);
+  box-shadow: 0 6px 16px rgba(4, 120, 87, .14);
+}
+
+:root:not([data-theme='dark']) .gold-glass-badge {
+  border-color: #e9d49b;
+  color: #9a6b16;
+  background: rgba(255, 252, 243, .95);
+  box-shadow: 0 4px 12px rgba(180, 131, 39, .18);
+  text-shadow: none;
+}
+
+:root:not([data-theme='dark']) .shared-pool-badge {
+  border-color: rgba(255, 255, 255, .7);
+  color: #fff;
+  background: #047857;
+  box-shadow: 0 4px 12px rgba(4, 120, 87, .25);
+  text-shadow: none;
+}
+
+:root:not([data-theme='dark']) :is(.stay-photos-button, .stay-capacity, .fee-pill) {
+  border-color: rgba(255, 255, 255, .95);
+  color: #0f172a;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .1);
+}
+
+:root:not([data-theme='dark']) .stay-photos-button:hover { background: #fff; }
+
+/* Selection rings follow the tier: antique gold or royal cobalt */
+:root:not([data-theme='dark']) .stay-card.is-exclusive.is-selected {
+  border-color: #b48327;
+  box-shadow: 0 0 0 2px rgba(180, 131, 39, .35), 0 20px 46px rgba(180, 131, 39, .16);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-shared.is-selected {
+  border-color: #047857;
+  box-shadow: 0 0 0 2px rgba(4, 120, 87, .25), 0 20px 46px rgba(4, 120, 87, .12);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-exclusive .select-stay.selected {
+  border-color: #b48327;
+  background: linear-gradient(135deg, #c99a3a, #b48327);
+}
+
+:root:not([data-theme='dark']) .stay-card.is-shared .select-stay.selected {
+  border-color: #047857;
+  background: linear-gradient(135deg, #059669, #047857);
+}
+
+/* The "Standard Shared-Pool Access" note inside each shared card */
+:root:not([data-theme='dark']) .stay-card .shared-pool-callout {
+  border-color: #bfe8cf;
+  background: #f1fbf4;
+}
+
+:root:not([data-theme='dark']) .stay-card .shared-pool-callout svg { color: #059669; }
+
+:root:not([data-theme='dark']) .stay-price strong { color: #b48327; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-theme='dark']) .hero::after { animation: none; }
+}
+
+@media print {
+  :root:not([data-theme='dark']) .hero::after { display: none; }
+}
+
+/* ---------- 4. Amenities: champagne panel with gold checks ---------- */
+:root:not([data-theme='dark']) .amenity-panel {
+  border-color: #e6dec8;
+  border-top-color: #fff;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 18px 44px rgba(120, 92, 40, .1);
+}
+
+:root:not([data-theme='dark']) .amenity-panel-top {
+  margin: -28px -28px 0;
+  padding: 24px 28px 20px;
+  border-radius: 18px 18px 0 0;
+  border-color: #eadfc4;
+  background: linear-gradient(135deg, #fdf8eb 0%, #f6e7c1 70%, #ecd49a 100%);
+}
+
+:root:not([data-theme='dark']) .amenity-symbol {
+  color: #fff;
+  background: linear-gradient(135deg, #d4af37, #b48327);
+  box-shadow: 0 8px 18px rgba(180, 131, 39, .3);
+}
+
+:root:not([data-theme='dark']) .amenity-panel-top small { color: #8a6a2c; }
+
+:root:not([data-theme='dark']) .amenity-list li { color: #334155; }
+
+:root:not([data-theme='dark']) .amenity-list li span {
+  color: #9a6b16;
+  background: #fbf1d6;
+  box-shadow: inset 0 0 0 1px #efdcaa;
+}
+
+:root:not([data-theme='dark']) .amenity-bottom { border-color: #eadfc4; color: #64748b; }
+:root:not([data-theme='dark']) .amenity-bottom svg { color: #059669; }
+
+/* ---------- 5. Rates: a warm travertine band with sun / moon / guest cards ---------- */
+:root:not([data-theme='dark']) .rates-section {
+  border-top: 1px solid #e6dec8;
+  background:
+    radial-gradient(ellipse 50% 60% at 0% 0%, rgba(253, 224, 71, .12), transparent 70%),
+    linear-gradient(180deg, #f7f1e5 0%, #efe6d5 100%);
+}
+
+:root:not([data-theme='dark']) .rate-detail-card {
+  border-color: #e6dec8;
+  border-top-color: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .06);
+}
+
+:root:not([data-theme='dark']) .rate-detail-card b { color: #0b1221; }
+:root:not([data-theme='dark']) .rate-prices li,
+:root:not([data-theme='dark']) .rate-pax-list li { border-top-color: rgba(180, 131, 39, .22); color: #475569; }
+
+/* Day Tour: champagne sunshine */
+:root:not([data-theme='dark']) .rate-day {
+  background: linear-gradient(160deg, #fffdf6 0%, #fbf1d6 60%, #f6e7c1 100%);
+}
+
+:root:not([data-theme='dark']) .rate-day .rate-detail-icon {
+  color: #fff;
+  background: linear-gradient(135deg, #f2c043, #d49a1f);
+  box-shadow: 0 8px 18px rgba(212, 154, 31, .32);
+}
+
+:root:not([data-theme='dark']) .rate-day strong { color: #9a6b16; }
+
+/* Night Tour: clear pool azure */
+:root:not([data-theme='dark']) .rate-night {
+  background: linear-gradient(160deg, #fbfdff 0%, #e8f2ff 60%, #dcebfe 100%);
+}
+
+:root:not([data-theme='dark']) .rate-night .rate-detail-icon {
+  color: #fff;
+  background: linear-gradient(135deg, #2449e0, #1434cb);
+  box-shadow: 0 8px 18px rgba(20, 52, 203, .28);
+}
+
+:root:not([data-theme='dark']) .rate-night li { border-top-color: rgba(20, 52, 203, .16); }
+:root:not([data-theme='dark']) .rate-night strong { color: #1434cb; }
+
+/* Maximum pax: crisp alabaster with coral accents */
+:root:not([data-theme='dark']) .rate-pax { background: rgba(255, 255, 255, .95); }
+
+:root:not([data-theme='dark']) .rate-pax .rate-detail-icon {
+  color: #fff;
+  background: linear-gradient(135deg, #e0604b, #c4402e);
+  box-shadow: 0 8px 18px rgba(217, 78, 59, .26);
+}
+
+:root:not([data-theme='dark']) .rate-pax strong { color: #d94e3b; }
+:root:not([data-theme='dark']) .rate-pax li { border-top-color: #efe6d5; }
+:root:not([data-theme='dark']) .rates-caveat { color: #64748b; }

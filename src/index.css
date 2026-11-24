@@ -1,25 +1,100 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap');
-
 :root {
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  color: #23332d;
-  background: #fbfaf6;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: var(--page-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-optical-sizing: auto;
   font-weight: 400;
+  color-scheme: light;
 
-  --ink: #20342c;
-  --muted: #78827a;
-  --green: #245c45;
-  --green-dark: #193d30;
-  --green-soft: #e8eee8;
-  --paper: #fbfaf6;
+  /* Light mode · Sunlit Coastal Sanctuary (matched to the Tampisawan logo) */
+  --page-bg: #faf7f2;
+  --page-bg-soft: #f2ece1;
+  --surface: rgba(255, 255, 255, .8);
+  --surface-strong: rgba(255, 255, 255, .94);
+  --ink: #0b1221;
+  --heading: #0b1221;
+  --body-text: #475569;
+  --muted: #475569;
+  /* --green is the app's primary accent token (name kept for compatibility): royal cobalt. */
+  --green: #1434cb;
+  --green-dark: #0f2a9e;
+  --green-soft: #e8ecfb;
+  --paper: #faf7f2;
   --white: #fff;
-  --coral: #e76555;
-  --border: #e8e8df;
+  --coral: #d94e3b;
+  --cta: #d94e3b;
+  --cta-hover: #c03f2d;
+  --cta-ink: #fff;
+  --cobalt: #1434cb;
+  --cobalt-soft: rgba(20, 52, 203, .09);
+  --gold: #b48327;
+  --gold-bright: #d4af37;
+  --gold-soft: rgba(212, 175, 55, .16);
+  --border: rgba(15, 23, 42, .1);
+  --accent-blue: #1434cb;
+  --accent-gold: #b48327;
+  --glass-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 14px 38px rgba(15, 23, 42, .07);
+  --glass-blur: blur(40px) saturate(160%);
+  --focus-ring: #1434cb;
+  --coral-bright: #e05a47;
+
+  /* Logo (tone "auto", light) */
+  --logo-cobalt-1: #2449e0;
+  --logo-cobalt-2: #1434cb;
+  --logo-gold-1: #b48327;
+  --logo-gold-2: #e9c25a;
+  --logo-gold-inner: #f7e3a6;
+  --logo-roof-edge: rgba(15, 23, 42, .18);
+  --logo-coral-1: #e8604d;
+  --logo-coral-2: #d94e3b;
+  --logo-subtitle: #c9774c;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  /* Dark mode · Midnight Private Pool Lounge */
+  --page-bg: #060911;
+  --page-bg-soft: #0c1322;
+  --surface: rgba(15, 23, 42, .7);
+  --surface-strong: rgba(14, 21, 37, .92);
+  --ink: #f8fafc;
+  --heading: #f8fafc;
+  --body-text: #94a3b8;
+  --muted: #94a3b8;
+  --green: #3b82f6;
+  --green-dark: #60a5fa;
+  --green-soft: rgba(59, 130, 246, .14);
+  --paper: #0c1322;
+  --white: #0c1322;
+  --coral: #f06a57;
+  --cta: #f06a57;
+  --cta-hover: #f5806f;
+  --cta-ink: #fff;
+  --cobalt: #2563eb;
+  --focus-ring: #3b82f6;
+  --cobalt-soft: rgba(59, 130, 246, .16);
+  --gold: #e5c158;
+  --gold-bright: #d4af37;
+  --gold-soft: rgba(229, 193, 88, .14);
+  --border: rgba(255, 255, 255, .1);
+  --accent-blue: #3b82f6;
+  --accent-gold: #e5c158;
+  --glass-shadow: 0 20px 55px rgba(0, 0, 0, .4);
+
+  /* Logo (tone "auto", dark): brighter cobalt and gold so nothing sinks into the night. */
+  --logo-cobalt-1: #3b6ef5;
+  --logo-cobalt-2: #1d4ed8;
+  --logo-gold-1: #d4af37;
+  --logo-gold-2: #f3d06b;
+  --logo-gold-inner: #fff1c2;
+  --logo-roof-edge: rgba(255, 255, 255, .12);
+  --logo-coral-1: #f6806e;
+  --logo-coral-2: #f06a57;
+  --logo-subtitle: #e59a6f;
 }
 
 * {
@@ -29,12 +104,19 @@
 html {
   min-width: 360px;
   scroll-behavior: smooth;
-  scroll-padding-top: 85px;
+  scroll-padding-top: 105px;
 }
 
 body {
   min-width: 360px;
   margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at 9% 2%, rgba(20, 52, 203, .06), transparent 32%),
+    radial-gradient(ellipse at 92% 18%, rgba(212, 175, 55, .1), transparent 28%),
+    radial-gradient(ellipse at 70% 96%, rgba(217, 78, 59, .05), transparent 30%),
+    var(--page-bg);
+  background-attachment: fixed;
 }
 
 button,
@@ -54,7 +136,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid #edaa66;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -68,5 +150,5 @@ a {
 
 ::selection {
   color: #fff;
-  background: #245c45;
+  background: #1434cb;
 }

@@ -14,7 +14,7 @@ export default function ProtectedRoute({
   useEffect(() => {
     if (loading) return
     if (!user) {
-      window.location.replace('/login')
+      window.location.replace(role === 'CUSTOMER' ? '/login?next=my-bookings' : '/login')
       return
     }
     if (user.role !== role) {

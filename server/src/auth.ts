@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import type { NextFunction, Request, Response } from 'express'
-import type { UserRecord } from './db.js'
+import { findUserById, type UserRecord } from './db.js'
 
 const TOKEN_LIFETIME = '8h'
 
@@ -75,7 +75,7 @@ export function createAccessToken(user: AuthUser) {
   })
 }
 
-export function requireUser(
+export async function requireUser(
   request: AuthenticatedRequest,
   response: Response,
   next: NextFunction,
@@ -87,27 +87,33 @@ export function requireUser(
     return
   }
 
+  let payload: string | jwt.JwtPayload
   try {
-    const payload = jwt.verify(token, jwtSecret())
-    if (typeof payload === 'string' || typeof payload.sub !== 'string' ||
-      (payload.role !== 'ADMIN' && payload.role !== 'CUSTOMER')) {
-      response.status(401).json({ message: 'Your sign-in token is invalid. Please sign in again.' })
-      return
-    }
-    request.authUser = {
-      id: payload.sub,
-      email: typeof payload.email === 'string' ? payload.email : '',
-      username: typeof payload.username === 'string' ? payload.username : '',
-      name: typeof payload.name === 'string' ? payload.name : '',
-      role: payload.role,
-    }
-    next()
+    payload = jwt.verify(token, jwtSecret())
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('JWT_SECRET')) {
       response.status(503).json({ message: error.message })
       return
     }
     response.status(401).json({ message: 'Your sign-in token is invalid or expired. Please sign in again.' })
+    return
+  }
+
+  if (typeof payload === 'string' || typeof payload.sub !== 'string') {
+    response.status(401).json({ message: 'Your sign-in token is invalid. Please sign in again.' })
+    return
+  }
+
+  try {
+    const user = await findUserById(payload.sub)
+    if (!user) {
+      response.status(401).json({ message: 'Your account no longer exists. Please sign in again.' })
+      return
+    }
+    request.authUser = publicUser(user)
+    next()
+  } catch (error) {
+    next(error)
   }
 }
 
@@ -117,7 +123,7 @@ export function requireAdmin(
   next: NextFunction,
 ) {
   if (request.authUser?.role !== 'ADMIN') {
-    response.status(403).json({ message: 'Admin access requires an administrator account.' })
+    response.status(403).json({ message: 'You do not have access to this page.' })
     return
   }
   next()
