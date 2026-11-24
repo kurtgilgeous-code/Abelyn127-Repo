@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomInt, randomUUID } from 'node:crypto'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -9,6 +9,7 @@ import {
   expirePendingHolds,
   findBookingPayment,
   findBooking,
+  isAccommodationAvailable,
   listAdminBookings,
   listBookingPayments,
   listCustomerBookings,
@@ -19,7 +20,6 @@ import {
   type BookingRecord,
   type PaymentRecord,
   type BookingStatus,
-  type PaymentMethod,
   type TourType,
 } from './db.js'
 import { calculateServerBookingTotal, parseAccommodationIds, parseExtraGuests, parseStoredExtraGuests } from './pricing.js'
@@ -27,9 +27,17 @@ import { calculateServerBookingTotal, parseAccommodationIds, parseExtraGuests, p
 const proofDirectory = process.env.PAYMENT_PROOF_DIR
   ? path.resolve(process.env.PAYMENT_PROOF_DIR)
   : fileURLToPath(new URL('../storage/payment-proofs/', import.meta.url))
-const paymentMethods: PaymentMethod[] = ['GCASH', 'MAYA', 'BANK_TRANSFER', 'OTHER']
-const bookingStatuses: BookingStatus[] = ['PENDING', 'CANCELLED']
+const bookingStatuses: BookingStatus[] = ['CANCELLED']
 const tourTypes: TourType[] = ['OVERNIGHT', 'DAY_TOUR', 'NIGHT_TOUR']
+
+const REFERENCE_USED = 'This GCash reference number was already used for a payment. Check it and try again.'
+
+function gcashReference() {
+  const stamp = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).replaceAll('-', '')
+  return `TRP-GCASH-${stamp}-${randomInt(0, 10000).toString().padStart(4, '0')}`
+}
+
+const sameCents = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -152,12 +160,12 @@ export async function createCustomerBooking(request: AuthenticatedRequest, respo
     /^\d+(?:\.\d{1,2})?$/.test(request.body.paymentAmount)
     ? Number(request.body.paymentAmount)
     : Number.NaN
-  if (!paymentMethods.includes(paymentMethod)) {
-    response.status(400).json({ message: 'Choose GCash, Maya, bank transfer, or other.' })
+  if (paymentMethod !== 'GCASH') {
+    response.status(400).json({ message: 'Online payment is by GCash only.' })
     return
   }
-  if (!paymentReference || paymentReference.length > 120) {
-    response.status(400).json({ message: 'Enter the transaction reference number (120 characters or fewer).' })
+  if (paymentReference.replace(/[\s-]/g, '').length < 6 || paymentReference.length > 120) {
+    response.status(400).json({ message: 'Enter the full GCash reference number from your receipt.' })
     return
   }
   if (!payerAccount || payerAccount.length > 200) {
@@ -198,11 +206,18 @@ export async function createCustomerBooking(request: AuthenticatedRequest, respo
     typeof depositRequired !== 'number' || !Number.isFinite(depositRequired) ||
     Math.round(estimatedTotal * 100) !== Math.round(expectedPricing.total * 100) ||
     Math.round(depositRequired * 100) !== Math.round(expectedPricing.deposit * 100) ||
-    !Number.isFinite(paymentAmount) || paymentAmount < expectedPricing.deposit || paymentAmount > expectedPricing.total
+    !Number.isFinite(paymentAmount) ||
+    !(sameCents(paymentAmount, expectedPricing.deposit) || sameCents(paymentAmount, expectedPricing.total))
   ) {
-    response.status(400).json({ message: 'Booking dates, tour type, guests, pricing, or initial payment amount are invalid. Refresh the page and check the current rates.' })
+    response.status(400).json({ message: 'Booking dates, tour type, guests, pricing, or payment amount are invalid. Pay exactly 50% or the full amount, and refresh the page to check the current rates.' })
     return
   }
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
+  if (body.checkInDate < today) {
+    response.status(400).json({ message: 'Choose a check-in date from today onward.' })
+    return
+  }
+  const datesOpen = await isAccommodationAvailable(expectedPricing.accommodationIds, body.checkInDate, body.checkOutDate)
 
   const detected = imageType(file.buffer)
   if (!detected || detected.mime !== file.mimetype) {
@@ -216,35 +231,55 @@ export async function createCustomerBooking(request: AuthenticatedRequest, respo
   const absolutePath = path.join(proofDirectory, storageKey)
   await writeFile(absolutePath, file.buffer, { flag: 'wx', mode: 0o600 })
   try {
-    await createBooking({
-      id,
-      userId,
-      customerName: request.authUser?.name ?? '',
-      customerEmail: request.authUser?.email ?? '',
-      accommodationIds: expectedPricing.accommodationIds,
-      accommodationName: expectedPricing.accommodationName,
-      tourType: tourType as TourType,
-      checkInDate: body.checkInDate,
-      checkOutDate: body.checkOutDate,
-      adults,
-      seniorsPwd,
-      children,
-      guestCount,
-      extraGuests: expectedPricing.extraGuests,
-      estimatedTotal: expectedPricing.total,
-      depositRequired: expectedPricing.deposit,
-      paymentAmount,
-      paymentMethod,
-      paymentReference,
-      payerAccount,
-      proofStorageKey: storageKey,
-      proofFileName: path.basename(file.originalname).slice(0, 180) || `payment-proof${detected.extension}`,
-    })
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const referenceNumber = gcashReference()
+      try {
+        const created = await createBooking({
+          id,
+          referenceNumber,
+          userId,
+          customerName: request.authUser?.name ?? '',
+          customerEmail: request.authUser?.email ?? '',
+          accommodationIds: expectedPricing.accommodationIds,
+          accommodationName: expectedPricing.accommodationName,
+          tourType: tourType as TourType,
+          checkInDate: body.checkInDate,
+          checkOutDate: body.checkOutDate,
+          adults,
+          seniorsPwd,
+          children,
+          guestCount,
+          extraGuests: expectedPricing.extraGuests,
+          estimatedTotal: expectedPricing.total,
+          depositRequired: expectedPricing.deposit,
+          paymentAmount,
+          paymentMethod: 'GCASH',
+          paymentReference,
+          payerAccount,
+          proofStorageKey: storageKey,
+          proofFileName: path.basename(file.originalname).slice(0, 180) || `payment-proof${detected.extension}`,
+        })
+        if (created === 'DUPLICATE_REFERENCE') {
+          await unlink(absolutePath).catch(() => undefined)
+          response.status(409).json({ message: REFERENCE_USED })
+          return
+        }
+        if (created === 'ALREADY_SENT') {
+          await unlink(absolutePath).catch(() => undefined)
+          response.status(409).json({ message: 'You already sent a payment for these dates. Please wait for the resort to verify it, or message the resort if you paid twice.' })
+          return
+        }
+        response.status(201).json({ id, referenceNumber, datesTaken: !datesOpen })
+        return
+      } catch (error) {
+        const uniqueViolation = isRecord(error) && error.code === '23505'
+        if (!uniqueViolation || attempt === 4) throw error
+      }
+    }
   } catch (error) {
     await unlink(absolutePath).catch(() => undefined)
     throw error
   }
-  response.status(201).json({ id })
 }
 
 export async function customerBookings(request: AuthenticatedRequest, response: Response) {
@@ -300,12 +335,12 @@ export async function submitPaymentProof(request: AuthenticatedRequest, response
     response.status(400).json({ message: 'Choose a payment method and attach a screenshot of the payment.' })
     return
   }
-  if (!paymentMethods.includes(paymentMethod)) {
-    response.status(400).json({ message: 'Choose GCash, Maya, bank transfer, or other.' })
+  if (paymentMethod !== 'GCASH') {
+    response.status(400).json({ message: 'Online payment is by GCash only.' })
     return
   }
-  if (!paymentReference || paymentReference.length > 120) {
-    response.status(400).json({ message: 'Enter the transaction reference number (120 characters or fewer).' })
+  if (paymentReference.replace(/[\s-]/g, '').length < 6 || paymentReference.length > 120) {
+    response.status(400).json({ message: 'Enter the full GCash reference number from your receipt.' })
     return
   }
   if (!payerAccount || payerAccount.length > 200) {
@@ -337,6 +372,15 @@ export async function submitPaymentProof(request: AuthenticatedRequest, response
     })
     return
   }
+  if (Number(previous.paid_amount) === 0) {
+    if (!(sameCents(paymentAmount, Number(previous.deposit_required)) || sameCents(paymentAmount, Number(previous.estimated_total)))) {
+      response.status(400).json({ message: 'Pay exactly 50% or the full amount.' })
+      return
+    }
+  }
+  const ids = previous.accommodation_ids?.length ? previous.accommodation_ids : [previous.accommodation_id]
+  const datesTaken = Number(previous.paid_amount) === 0 &&
+    !(await isAccommodationAvailable(ids, previous.check_in_date, previous.check_out_date))
   const storageKey = `${randomUUID()}${detected.extension}`
   await mkdir(proofDirectory, { recursive: true })
   const absolutePath = path.join(proofDirectory, storageKey)
@@ -352,6 +396,11 @@ export async function submitPaymentProof(request: AuthenticatedRequest, response
       proofFileName: path.basename(file.originalname).slice(0, 180) || `payment-proof${detected.extension}`,
       paymentAmount,
     })
+    if (updated === 'DUPLICATE_REFERENCE') {
+      await unlink(absolutePath)
+      response.status(409).json({ message: REFERENCE_USED })
+      return
+    }
     if (!updated) {
       await unlink(absolutePath)
       response.status(409).json({ message: 'Payment proof cannot be submitted for this booking in its current state.' })
@@ -361,7 +410,7 @@ export async function submitPaymentProof(request: AuthenticatedRequest, response
     await unlink(absolutePath).catch(() => undefined)
     throw error
   }
-  response.json({ message: 'Payment proof sent to the resort for review.' })
+  response.json({ message: 'Payment proof sent to the resort for review.', datesTaken })
 }
 
 export async function adminPaymentProof(request: Request, response: Response) {
@@ -412,6 +461,10 @@ export async function updateAdminBooking(request: Request, response: Response) {
     id,
     status: status as BookingStatus,
   })
+  if (updated === 'PAYMENT_WAITING') {
+    response.status(409).json({ message: 'Verify this payment or mark it not received before cancelling the booking.' })
+    return
+  }
   if (!updated) {
     response.status(404).json({ message: 'Booking not found.' })
     return
@@ -433,6 +486,10 @@ export async function reviewAdminPayment(request: Request, response: Response) {
     return
   }
   const updated = await reviewBookingPayment({ bookingId, paymentId, received: body.received })
+  if (updated === 'DUPLICATE_REFERENCE') {
+    response.status(409).json({ message: 'This GCash reference number was already verified on another payment. Check your GCash history before confirming.' })
+    return
+  }
   if (!updated) {
     response.status(409).json({ message: 'This payment is no longer waiting for review.' })
     return

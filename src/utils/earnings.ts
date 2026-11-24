@@ -3,7 +3,7 @@ import type { Booking, BookingPayment } from '../data/bookings'
 /**
  * Earnings follow the payment hierarchy, on a cash basis:
  * - Only payments marked RECEIVED count, in the month they were verified (Philippine time).
- * - Tier 1 GCash (HitPay) payments include the separately itemized online gateway fee;
+ * - Tier 1 GCash gateway payments (older bookings) include the separately itemized online gateway fee;
  *   that fee is passed through to the gateway, so resort earnings = amount − fee.
  * - Cash (walk-ins, confirmed walk-in vouchers, balances collected at check-in) counts in full.
  * - Verified manual transfers (screenshot-reviewed GCash / Maya / bank) count in full.
@@ -15,7 +15,7 @@ export type EarningsChannel = 'gcash' | 'cash' | 'transfer'
 export const channelOrder: EarningsChannel[] = ['gcash', 'cash', 'transfer']
 
 export const channelLabels: Record<EarningsChannel, string> = {
-  gcash: 'GCash reservation deposits',
+  gcash: 'GCash payments',
   cash: 'Cash collected',
   transfer: 'Verified transfers',
 }
@@ -82,7 +82,7 @@ function isGatewayPayment(booking: Booking, payment: BookingPayment) {
 }
 
 function methodLabel(payment: BookingPayment, gateway: boolean) {
-  if (gateway) return 'GCash · HitPay'
+  if (gateway) return 'GCash · online'
   if (payment.method === 'CASH') return 'Cash'
   if (payment.method === 'BANK_TRANSFER') return 'Bank transfer'
   if (payment.method === 'MAYA') return 'Maya'
@@ -108,7 +108,7 @@ export function buildLedger(bookings: Booking[]): LedgerEntry[] {
         reference: booking.referenceNumber,
         guest: booking.customerName || 'Guest',
         accommodation: booking.accommodationName,
-        channel: gateway ? 'gcash' : payment.method === 'CASH' ? 'cash' : 'transfer',
+        channel: gateway || payment.method === 'GCASH' ? 'gcash' : payment.method === 'CASH' ? 'cash' : 'transfer',
         methodLabel: methodLabel(payment, gateway),
         gross: round2(payment.amount),
         gatewayFee: round2(gatewayFee),

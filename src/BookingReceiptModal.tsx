@@ -29,8 +29,14 @@ export default function BookingReceiptModal({
         ? 'Released · another booking was confirmed first'
         : booking.status
   const isExclusive = booking.accommodationIds.some((id) => id === 'abelyns-cabin-glass' || id === 'balai-delnor')
-  const paymentConfirmed = isWalkIn || Boolean(booking.gatewayPaymentId)
+  const paymentConfirmed = isWalkIn || Boolean(booking.gatewayPaymentId) || (isOnline && booking.paidAmount > 0)
   const cashBalance = Math.max(0, booking.baseResortPrice - booking.paidAmount)
+  const unverifiedOnline = isOnline && !paymentConfirmed
+  const paymentRejected = unverifiedOnline && booking.paymentStatus === 'NOT_PAID'
+  const amountInReview = booking.payments.filter((payment) => payment.status === 'PENDING_REVIEW').reduce((sum, payment) => sum + payment.amount, 0)
+  // Older gateway bookings include a fee in the amount paid online.
+  const onlinePaid = booking.gatewayFeeAmount > 0 ? booking.totalOnlinePaid : booking.paidAmount
+  const gcashReference = booking.gatewayPaymentId ?? [...booking.payments].reverse().find((payment) => payment.method === 'GCASH' && payment.status !== 'NOT_RECEIVED')?.reference
 
   // Itemized room rate and entrance fees, recalculated from the booking's own details. Shown
   // only when it matches the amount actually charged (older bookings priced under earlier
@@ -70,8 +76,8 @@ export default function BookingReceiptModal({
       <header className="receipt-heading">
         <ResortLogo className="receipt-logo" tone="print" />
         <span className="receipt-kicker">TAMPISAWAN 927 · ABELYN&apos;S PRIVATE POOL</span>
-        <h1>{isHold ? 'Walk-In Voucher' : 'Official Booking Receipt'}</h1>
-        <p>{isHold ? 'Show this voucher at the resort and pay in cash on or before your check-in date. Your dates are confirmed once the cash is received.' : 'Keep this receipt for check-in and payment reference.'}</p>
+        <h1>{isHold ? 'Walk-In Voucher' : paymentRejected ? 'Payment Not Verified' : unverifiedOnline ? 'Payment Sent · Not Yet Verified' : 'Official Booking Receipt'}</h1>
+        <p>{isHold ? 'Show this voucher at the resort and pay in cash on or before your check-in date. Your dates are confirmed once the cash is received.' : paymentRejected ? 'The resort did not receive this payment. This is not a confirmed booking.' : unverifiedOnline ? 'This is not a confirmed booking yet. Keep it for your reference.' : 'Keep this receipt for check-in and payment reference.'}</p>
       </header>
       <dl className="receipt-reference-grid">
         <div><dt>Booking reference</dt><dd>{booking.referenceNumber}</dd></div>
@@ -79,9 +85,9 @@ export default function BookingReceiptModal({
         {isHold ? (
           <div><dt>Voucher valid until</dt><dd>{booking.expiresAt ? new Date(booking.expiresAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : '—'}{holdActive && booking.expiresAt && <> · <HoldCountdown expiresAt={booking.expiresAt} /> left</>}</dd></div>
         ) : (
-          <div><dt>HitPay transaction ID</dt><dd>{booking.gatewayPaymentId ?? (isOnline ? 'Awaiting payment confirmation' : 'Not applicable')}</dd></div>
+          <div><dt>GCash reference</dt><dd>{gcashReference ?? (isOnline ? 'Awaiting payment' : 'Not applicable')}</dd></div>
         )}
-        <div><dt>Booking status</dt><dd>{isHold ? holdStatusText : booking.status === 'DATE_UNAVAILABLE' ? 'Payment received · dates unavailable' : booking.status}</dd></div>
+        <div><dt>Booking status</dt><dd>{isHold ? holdStatusText : booking.status === 'DATE_UNAVAILABLE' ? 'Payment received · dates unavailable' : paymentRejected && booking.status === 'PENDING' ? 'Payment not verified' : unverifiedOnline && booking.status === 'PENDING' ? 'Waiting for payment verification' : booking.status}</dd></div>
         {booking.holdReferenceNumber && <div><dt>Original hold reference</dt><dd>{booking.holdReferenceNumber}</dd></div>}
       </dl>
       <section className="receipt-stay-details">
@@ -127,25 +133,27 @@ export default function BookingReceiptModal({
         <div className={`receipt-financial-row${showBreakdown ? ' receipt-subtotal' : ''}`}><span>{showBreakdown ? 'Total resort rate' : 'Resort accommodation & entrance rates'}</span><b>{formatPeso(booking.baseResortPrice)}</b></div>
         {isOnline && (
           <>
-            <div className="receipt-financial-row"><span>50% base resort reservation deposit</span><b>{formatPeso(booking.baseDepositAmount)}</b></div>
-            <div className="receipt-financial-row"><span>Online gateway &amp; convenience fee (2.5%)</span><b>{formatPeso(booking.gatewayFeeAmount)}</b></div>
-            <div className="receipt-financial-row receipt-total">
-              <span>{paymentConfirmed ? 'Total GCash paid' : 'Total GCash payment due'}</span>
-              <b>{formatPeso(booking.totalOnlinePaid)}</b>
-            </div>
-            <div className="receipt-financial-row"><span>Remaining cash balance at check-in</span><b>{formatPeso(cashBalance)}</b></div>
+            {booking.gatewayFeeAmount > 0 && (
+              <>
+                <div className="receipt-financial-row"><span>50% base resort reservation deposit</span><b>{formatPeso(booking.baseDepositAmount)}</b></div>
+                <div className="receipt-financial-row"><span>Online gateway &amp; convenience fee (2.5%)</span><b>{formatPeso(booking.gatewayFeeAmount)}</b></div>
+              </>
+            )}
+            <div className="receipt-financial-row receipt-total"><span>Paid and verified</span><b>{formatPeso(onlinePaid)}</b></div>
+            {amountInReview > 0 && <div className="receipt-financial-row"><span>GCash payment awaiting verification</span><b>{formatPeso(amountInReview)}</b></div>}
+            <div className="receipt-financial-row"><span>Remaining balance</span><b>{formatPeso(cashBalance)}</b></div>
           </>
         )}
         {isWalkIn && (
           <>
-            <div className="receipt-financial-row"><span>Online gateway fee</span><b>{formatPeso(0)}</b></div>
+            <div className="receipt-financial-row"><span>Online fee</span><b>{formatPeso(0)}</b></div>
             <div className="receipt-financial-row receipt-total"><span>Cash received at walk-in</span><b>{formatPeso(booking.paidAmount)}</b></div>
             <div className="receipt-financial-row"><span>Remaining cash balance</span><b>{formatPeso(cashBalance)}</b></div>
           </>
         )}
         {isHold && (
           <>
-            <div className="receipt-financial-row"><span>Online gateway fee</span><b>{formatPeso(0)}</b></div>
+            <div className="receipt-financial-row"><span>Online fee</span><b>{formatPeso(0)}</b></div>
             <div className="receipt-financial-row receipt-total"><span>Cash due at the resort</span><b>{formatPeso(booking.baseResortPrice)}</b></div>
             <div className="receipt-financial-row"><span>Paid so far</span><b>{formatPeso(booking.paidAmount)}</b></div>
           </>
@@ -154,11 +162,11 @@ export default function BookingReceiptModal({
           <div className="receipt-financial-row receipt-total"><span>Recorded amount paid</span><b>{formatPeso(booking.paidAmount)}</b></div>
         )}
       </section>
-      {!paymentConfirmed && isOnline && (
-        <p className="receipt-pending-note">This receipt becomes official after HitPay confirms payment through its signed webhook.</p>
+      {unverifiedOnline && !paymentRejected && (
+        <p className="receipt-pending-note">This receipt becomes official after the resort verifies your GCash payment. Your dates are not secured until then.</p>
       )}
       {isHold && (
-        <p className="receipt-pending-note">First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash deposit or cash paid at the resort). The voucher is valid until the end of your check-in date.</p>
+        <p className="receipt-pending-note">First come, first served: a walk-in voucher does not reserve the date. The dates stay open to other guests until a booking is confirmed (a verified GCash payment or cash paid at the resort). The voucher is valid until the end of your check-in date.</p>
       )}
       {booking.status === 'DATE_UNAVAILABLE' && (
         <p className="receipt-pending-note">Payment was received after another confirmed booking secured these dates. Contact the resort to adjust your booking to another available date.</p>
@@ -179,7 +187,7 @@ export default function BookingReceiptModal({
 
   return (
     <div className="receipt-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="receipt-modal" role="dialog" aria-modal="true" aria-label={isHold ? 'Walk-in voucher' : 'Official booking receipt'}>
+      <section className="receipt-modal" role="dialog" aria-modal="true" aria-label={isHold ? 'Walk-in voucher' : unverifiedOnline ? 'Unverified booking receipt' : 'Official booking receipt'}>
         <button className="receipt-close" type="button" aria-label="Close receipt" onClick={onClose}><X size={18} /></button>
         {content}
       </section>

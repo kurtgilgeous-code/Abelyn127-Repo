@@ -1,0 +1,244 @@
+/* =========================================================================
+   Eye-catching buttons, in four ranks so the main action always stands out:
+   coral = the next step · gold = explore · green = add/confirm · outline = other.
+   Colors, depth and motion only: sizes and layout stay as they are.
+   `:not(#_)` lets these styles win over the older theme layers.
+   ========================================================================= */
+:root {
+  --pop-coral: linear-gradient(135deg, #d4491f 0%, #b93815 100%);
+  --pop-coral-lip: #842509;
+  --pop-coral-glow: rgba(201, 62, 22, .42);
+  --pop-gold: linear-gradient(135deg, #fbdc8c 0%, #eeb445 100%);
+  --pop-gold-lip: #a8741a;
+  --pop-gold-glow: rgba(214, 150, 36, .45);
+  --pop-green: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  --pop-green-lip: #03402f;
+  --pop-green-glow: rgba(4, 120, 87, .38);
+  --pop-shine: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .42) 50%, transparent 65%);
+}
+
+:root[data-theme='dark'] {
+  --pop-green: linear-gradient(135deg, #f7d384 0%, #e7b65a 100%);
+  --pop-green-lip: #93691c;
+  --pop-green-glow: rgba(242, 196, 108, .3);
+}
+
+@keyframes pop-shine {
+  0%, 68% { background-position: -30% 0, 0 0; }
+  100% { background-position: 110% 0, 0 0; }
+}
+
+@media screen {
+  /* ---- Filled buttons: raised, glossy, and they press down like a real button ---- */
+  :root:not(#_) :is(
+    .header-cta, .review-button:not(:disabled), .auth-submit-button:not(:disabled), .proceed-bar-go,
+    .customer-side-cta, .walkin-submit-button:not(:disabled), .walkin-new-booking-button,
+    .button-light, .showcase-select, .preview-button,
+    .stay-card .select-stay:not(.selected), .guest-stepper button:not(:disabled),
+    .action-confirm:not(:disabled), .geraint-send:not(:disabled)
+  ) {
+    --lip: var(--pop-coral-lip);
+    --glow: var(--pop-coral-glow);
+    border-color: transparent;
+    color: #fff;
+    background-color: transparent;
+    background-image: var(--pop-shine), var(--pop-coral);
+    background-repeat: no-repeat;
+    background-size: 250% 100%, 100% 100%;
+    background-position: -30% 0, 0 0;
+    background-origin: border-box;
+    box-shadow: 0 3px 0 var(--lip), 0 7px 16px var(--glow) !important;
+    font-weight: 800;
+    filter: none;
+    opacity: 1;
+    cursor: pointer;
+    transition: translate .16s cubic-bezier(.3, 1.5, .6, 1), scale .16s cubic-bezier(.3, 1.5, .6, 1),
+      box-shadow .16s ease, background-position .6s ease, color .16s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  :root:not(#_):not(#_) :is(.button-light, .showcase-select, .preview-button) {
+    --lip: var(--pop-gold-lip);
+    --glow: var(--pop-gold-glow);
+    color: #2c1e05;
+    background-image: var(--pop-shine), var(--pop-gold);
+  }
+
+  :root:not(#_) :is(
+    .stay-card .select-stay:not(.selected), .guest-stepper button:not(:disabled),
+    .action-confirm:not(:disabled), .geraint-send:not(:disabled)
+  ) {
+    --lip: var(--pop-green-lip);
+    --glow: var(--pop-green-glow);
+    color: var(--tap-on);
+    background-image: var(--pop-shine), var(--pop-green);
+  }
+
+  .admin-shell:not(#_) .action-confirm:not(:disabled) {
+    --lip: #03402f;
+    --glow: rgba(4, 120, 87, .38);
+    color: #fff;
+    background-image: var(--pop-shine), linear-gradient(135deg, #047857 0%, #065f46 100%);
+  }
+
+  /* Arrows and icons keep their size when a label is long. */
+  :root:not(#_) :is(.header-cta, .button, .review-button, .showcase-select, .proceed-bar-go, .customer-side-cta) svg {
+    flex: none;
+  }
+
+  /* The hero button is always wide enough for its label and arrow. */
+  :root:not(#_) .hero .button-light {
+    flex: none;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  /* The step that moves a booking forward catches the eye, on phones too. */
+  :root:not(#_) :is(.booking-card .review-button:not(:disabled), .review-modal .modal-done:not(:disabled), .proceed-bar-go) {
+    animation: pop-shine 4.2s ease-in-out infinite;
+  }
+
+  /* ---- Outlined buttons fill with color when used ---- */
+  :root:not(#_) :is(
+    .hold-secondary-button, .customer-booking-view-button, .stay-photos-button, .admin-receipt-button,
+    .ops-reschedule-button, .ops-block-button, .users-secondary-button, .earnings-print-button,
+    .receipt-print-button
+  ):not(:disabled) {
+    box-shadow: 0 2px 0 var(--tap-ring), 0 4px 10px rgba(6, 60, 44, .14) !important;
+    cursor: pointer;
+    transition: translate .16s cubic-bezier(.3, 1.5, .6, 1), scale .16s ease, box-shadow .16s ease,
+      background-color .16s ease, border-color .16s ease, color .16s ease;
+  }
+
+  :root:not(#_) :is(.action-decline, .users-danger-button):not(:disabled) {
+    cursor: pointer;
+    transition: translate .16s ease, scale .16s ease, background-color .16s ease, color .16s ease, box-shadow .16s ease;
+  }
+
+  /* ---- Text links: a line that grows toward the action ---- */
+  :root:not(#_) :is(.site-shell .text-link, .site-shell .footer-top) {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 42% 2px;
+    transition: background-size .25s ease, color .16s ease, translate .16s ease;
+  }
+
+  /* ---- Selected choices glow ---- */
+  html:root:not(#_) .site-shell :is(.tour-option.is-checked, .stay-option.is-checked, .estimate-option.is-selected) {
+    box-shadow: 0 0 0 2px var(--tap), 0 8px 20px var(--tap-ring) !important;
+  }
+
+  /* ---- Mouse: lift, grow, and sweep a shine across ---- */
+  @media (hover: hover) {
+    :root:not(#_) :is(
+      .header-cta, .review-button:not(:disabled), .auth-submit-button:not(:disabled), .proceed-bar-go,
+      .customer-side-cta, .walkin-submit-button:not(:disabled), .walkin-new-booking-button,
+      .button-light, .showcase-select, .preview-button,
+      .stay-card .select-stay:not(.selected), .guest-stepper button:not(:disabled),
+      .action-confirm:not(:disabled), .geraint-send:not(:disabled)
+    ):hover {
+      translate: 0 -3px;
+      scale: 1.03;
+      background-position: 110% 0, 0 0;
+      box-shadow: 0 6px 0 var(--lip), 0 14px 26px var(--glow) !important;
+      filter: none;
+      animation: none;
+    }
+
+    :root:not(#_) :is(
+      .hold-secondary-button, .customer-booking-view-button, .stay-photos-button, .admin-receipt-button,
+      .ops-reschedule-button, .ops-block-button, .users-secondary-button, .earnings-print-button,
+      .receipt-print-button
+    ):not(:disabled):hover {
+      translate: 0 -2px;
+      border-color: var(--tap);
+      color: var(--tap-on);
+      background: var(--tap);
+      box-shadow: 0 8px 18px var(--tap-ring) !important;
+      filter: none;
+    }
+
+    .admin-shell:not(#_) :is(.admin-receipt-button, .ops-reschedule-button, .ops-block-button, .users-secondary-button, .earnings-print-button):not(:disabled):hover {
+      border-color: #047857;
+      color: #fff;
+      background: #047857;
+    }
+
+    :root:not(#_) :is(.action-decline, .users-danger-button):not(:disabled):hover {
+      translate: 0 -2px;
+      border-color: #b91c1c;
+      color: #fff;
+      background: #b91c1c;
+      box-shadow: 0 8px 18px rgba(185, 28, 28, .32);
+    }
+
+    :root:not(#_) :is(.site-shell .text-link, .site-shell .footer-top):hover {
+      background-size: 100% 2px;
+      box-shadow: none !important;
+      translate: 2px 0;
+    }
+  }
+
+  /* ---- Press: sinks into its base. This is what phone users feel. ---- */
+  :root:not(#_) :is(
+    .header-cta, .review-button:not(:disabled), .auth-submit-button:not(:disabled), .proceed-bar-go,
+    .customer-side-cta, .walkin-submit-button:not(:disabled), .walkin-new-booking-button,
+    .button-light, .showcase-select, .preview-button,
+    .stay-card .select-stay:not(.selected), .guest-stepper button:not(:disabled),
+    .action-confirm:not(:disabled), .geraint-send:not(:disabled)
+  ):active {
+    translate: 0 3px;
+    scale: .98;
+    box-shadow: 0 0 0 var(--lip), 0 2px 6px var(--glow) !important;
+    filter: brightness(.95);
+    animation: none;
+  }
+
+  :root:not(#_) :is(
+    .hold-secondary-button, .customer-booking-view-button, .stay-photos-button, .admin-receipt-button,
+    .ops-reschedule-button, .ops-block-button, .users-secondary-button, .earnings-print-button,
+    .receipt-print-button
+  ):not(:disabled):active {
+    translate: 0 1px;
+    scale: .97;
+    border-color: var(--tap);
+    color: var(--tap-on);
+    background: var(--tap);
+    box-shadow: none !important;
+  }
+
+  .admin-shell:not(#_) :is(.admin-receipt-button, .ops-reschedule-button, .ops-block-button, .users-secondary-button, .earnings-print-button):not(:disabled):active {
+    border-color: #047857;
+    color: #fff;
+    background: #047857;
+  }
+
+  /* ---- Not ready yet: clearly flat and gray, so it never looks tappable ---- */
+  :root:not(#_) :is(.review-button, .auth-submit-button, .walkin-submit-button):disabled {
+    border-color: #c9d0d8;
+    color: #4b5563;
+    background: #e3e7ec;
+    box-shadow: none !important;
+    filter: none;
+    opacity: 1;
+    animation: none;
+    cursor: not-allowed;
+  }
+
+  :root[data-theme='dark']:not(#_) :is(.review-button, .auth-submit-button, .walkin-submit-button):disabled {
+    border-color: #3b4652;
+    color: #c2ccd6;
+    background: #2a333d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not(#_) :is(a, button) {
+    animation: none !important;
+    transition: none !important;
+    translate: none !important;
+    scale: 1 !important;
+  }
+}

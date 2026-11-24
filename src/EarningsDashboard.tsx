@@ -120,11 +120,11 @@ function PrintReport({
         <table className="earnings-table is-print">
           <tbody>
             {channelOrder.map((channel) => (
-              <tr key={channel}><th scope="row">{channelLabels[channel]}{channel === 'gcash' ? ' (net of gateway fee)' : ''}</th><td className="num">{pesoExact.format(summary.byChannel[channel])}</td></tr>
+              <tr key={channel}><th scope="row">{channelLabels[channel]}</th><td className="num">{pesoExact.format(summary.byChannel[channel])}</td></tr>
             ))}
             <tr className="print-total"><th scope="row">Net resort earnings</th><td className="num">{pesoExact.format(summary.net)}</td></tr>
             <tr><th scope="row">Total collected (incl. gateway fees)</th><td className="num">{pesoExact.format(summary.gross)}</td></tr>
-            <tr><th scope="row">Online gateway fees passed to HitPay</th><td className="num">{pesoExact.format(summary.gatewayFees)}</td></tr>
+            <tr><th scope="row">Online gateway fees (older bookings)</th><td className="num">{pesoExact.format(summary.gatewayFees)}</td></tr>
             <tr><th scope="row">Held for booking adjustment (excluded) · {summary.refundReviewCount} payment{summary.refundReviewCount === 1 ? '' : 's'}</th><td className="num">{pesoExact.format(summary.refundReview)}</td></tr>
             <tr><th scope="row">Payments received · bookings</th><td className="num">{summary.payments} · {summary.bookings}</td></tr>
             <tr><th scope="row">Cash balance still to collect (check-ins this month, not yet earned)</th><td className="num">{pesoExact.format(toCollect)}</td></tr>
@@ -237,7 +237,7 @@ export default function EarningsDashboard({ bookings, preparedBy }: { bookings: 
           <div className="earnings-card earnings-tile">
             <span className="earnings-label">Gateway fees (pass-through)</span>
             <strong>{peso.format(summary.gatewayFees)}</strong>
-            <small>Collected for HitPay · not income</small>
+            <small>Older bookings · not income</small>
           </div>
           <div className="earnings-card earnings-tile">
             <span className="earnings-label">Payments received</span>

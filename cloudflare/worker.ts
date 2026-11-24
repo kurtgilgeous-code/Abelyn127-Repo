@@ -14,9 +14,6 @@ interface Env {
   PAYMENT_PROOFS: R2Bucket
   ASSETS: { fetch(request: Request): Promise<Response> }
   JWT_SECRET?: string
-  HITPAY_API_KEY?: string
-  HITPAY_WEBHOOK_SALT?: string
-  HITPAY_MODE?: string
   GEMINI_API_KEY?: string
   GEMINI_MODEL?: string
   APP_ORIGIN?: string
@@ -101,8 +98,7 @@ interface BookingJoinedRow {
   joined_payment_verified_at: string | null
 }
 
-const paymentMethods: PaymentMethod[] = ['GCASH', 'MAYA', 'BANK_TRANSFER', 'OTHER']
-const bookingStatuses: BookingStatus[] = ['PENDING', 'CANCELLED']
+const bookingStatuses: BookingStatus[] = ['CANCELLED']
 const tourTypes: TourType[] = ['OVERNIGHT', 'DAY_TOUR', 'NIGHT_TOUR']
 
 /** A walk-in voucher stays valid through the end of its check-in date, Philippine time. */
@@ -266,6 +262,21 @@ async function stayIsOpen(env: Env, accommodationIdsJson: string, checkInDate: s
   `).bind(checkOutDate, checkInDate, accommodationIdsJson, checkOutDate, checkInDate, accommodationIdsJson)
     .first<{ open: number }>()
   return Boolean(row?.open)
+}
+
+const REFERENCE_USED = 'This GCash reference number was already used for a payment. Check it and try again.'
+const normalizedReference = (column: string) => `UPPER(REPLACE(REPLACE(${column}, ' ', ''), '-', ''))`
+const sameCents = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100)
+
+/** A GCash reference can back only one payment, unless the resort marked it not received. */
+async function gcashReferenceInUse(env: Env, reference: string) {
+  const row = await env.DB.prepare(`
+    SELECT 1 AS used FROM booking_payments
+    WHERE source = 'CUSTOMER' AND method <> 'CASH' AND status <> 'NOT_RECEIVED'
+      AND ${normalizedReference('reference')} = ${normalizedReference('?')}
+    LIMIT 1
+  `).bind(reference).first<{ used: number }>()
+  return Boolean(row)
 }
 
 const entranceRates: Record<TourType, { adults: number; seniorsPwd: number; children: number }> = {
@@ -606,148 +617,6 @@ function referenceNumber(prefix: 'GCASH' | 'CASH' | 'HOLD') {
   return `TRP-${prefix}-${date}-${suffix.toString().padStart(4, '0')}`
 }
 
-function checkoutOrigin(request: Request, env: Env) {
-  const configured = env.APP_ORIGIN?.split(',').map((origin) => origin.trim()).find(Boolean)
-  return (configured || new URL(request.url).origin).replace(/\/+$/, '')
-}
-
-// Online fee added on top of the deposit. HitPay's published GCash rate is 2.3% + VAT;
-// confirm the rate on your HitPay account before going live.
-const ONLINE_FEE_RATE = 0.025
-
-type HitpayConfig = { apiKey: string, apiBase: string }
-
-function hitpayConfig(env: Env): HitpayConfig | null {
-  const apiKey = env.HITPAY_API_KEY?.trim()
-  const mode = env.HITPAY_MODE?.trim().toLowerCase()
-  if (!apiKey || (mode !== 'live' && mode !== 'sandbox')) return null
-  return {
-    apiKey,
-    apiBase: mode === 'live' ? 'https://api.hit-pay.com/v1' : 'https://api.sandbox.hit-pay.com/v1',
-  }
-}
-
-function hitpayHeaders(config: HitpayConfig) {
-  return {
-    'X-BUSINESS-API-KEY': config.apiKey,
-    'X-Requested-With': 'XMLHttpRequest',
-    Accept: 'application/json',
-  }
-}
-
-async function createGcashCheckout(request: Request, env: Env, user: AuthUser) {
-  const hitpay = hitpayConfig(env)
-  if (!hitpay) {
-    return json({ message: 'Online GCash checkout is not configured. Please contact the resort.' }, 503)
-  }
-  const parsed = await readJson(request)
-  if (parsed.tooLarge) return json({ message: 'Request body must be 10 KB or smaller.' }, 413)
-  const booking = getBookingDetails(parsed.body)
-  if (!booking) {
-    return json({ message: guestLimitMessage(parsed.body) ?? 'Booking dates, accommodation, tour type, or guest details are invalid. Refresh the page and check the current rates.' }, 400)
-  }
-  if (!(await stayIsOpen(env, booking.accommodationIdsJson, booking.checkInDate, booking.checkOutDate))) {
-    return json({ message: 'These dates are no longer available (already confirmed or closed by the resort). Please choose another date or accommodation.' }, 409)
-  }
-
-  const onlineCharge = Math.round((booking.baseDepositAmount / (1 - ONLINE_FEE_RATE)) * 100) / 100
-  const gatewayFeeAmount = Math.round((onlineCharge - booking.baseDepositAmount) * 100) / 100
-  const totalOnlinePaid = Math.round((booking.baseDepositAmount + gatewayFeeAmount) * 100) / 100
-  const cashBalanceDue = Math.round((booking.baseResortPrice - booking.baseDepositAmount) * 100) / 100
-  const bookingId = `TS-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
-  let reference = ''
-  let inserted = false
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    reference = referenceNumber('GCASH')
-    try {
-      await env.DB.prepare(`
-        INSERT INTO bookings (
-          id, user_id, customer_name, customer_email, reference_number, payment_tier,
-          base_resort_price, base_deposit_amount, gateway_fee_amount, total_online_paid,
-          cash_balance_due, accommodation_id, accommodation_name, tour_type,
-          check_in_date, check_out_date, adults, seniors_pwd, children, guest_count,
-          estimated_total, deposit_required, payment_amount, paid_amount, status,
-          payment_status, payment_method, payment_reference, priority_rank, accommodation_ids, extra_guests
-        ) VALUES (
-          ?, ?, ?, ?, ?, 'ONLINE_GCASH_RESERVATION',
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING',
-          'UNPAID', 'GCASH', ?, 1, ?, ?
-        )
-      `).bind(
-        bookingId, user.id, user.name, user.email, reference,
-        booking.baseResortPrice, booking.baseDepositAmount, gatewayFeeAmount,
-        totalOnlinePaid, cashBalanceDue, booking.accommodationId, booking.accommodationName,
-        booking.tourType, booking.checkInDate, booking.checkOutDate, booking.adults,
-        booking.seniorsPwd, booking.children, booking.guestCount, booking.baseResortPrice,
-        booking.baseDepositAmount, totalOnlinePaid, reference, booking.accommodationIdsJson,
-        booking.extraGuestsJson,
-      ).run()
-      inserted = true
-      break
-    } catch (error) {
-      if (!(error instanceof Error && error.message.includes('UNIQUE constraint failed')) || attempt === 4) throw error
-    }
-  }
-  if (!inserted) return json({ message: 'Could not generate a unique booking reference. Please try again.' }, 503)
-
-  const form = new URLSearchParams({
-    amount: totalOnlinePaid.toFixed(2),
-    currency: 'PHP',
-    purpose: `50% resort deposit + online fee - ${booking.accommodationName}`.slice(0, 255),
-    reference_number: reference,
-    // HitPay appends ?reference=<payment request id>&status=<status> to this URL,
-    // so the booking reference travels in the path instead of the query string.
-    redirect_url: `${checkoutOrigin(request, env)}/booking/return/${encodeURIComponent(reference)}`,
-    name: user.name.slice(0, 255),
-    allow_repeated_payments: 'false',
-    send_email: user.email ? 'true' : 'false',
-  })
-  form.append('payment_methods[]', 'gcash')
-  if (user.email) form.set('email', user.email)
-
-  let checkoutResponse: Response
-  try {
-    checkoutResponse = await fetch(`${hitpay.apiBase}/payment-requests`, {
-      method: 'POST',
-      headers: { ...hitpayHeaders(hitpay), 'Content-Type': 'application/x-www-form-urlencoded' },
-      signal: AbortSignal.timeout(15_000),
-      body: form,
-    })
-  } catch (error) {
-    await env.DB.prepare(`
-      UPDATE bookings SET status = 'CANCELLED', payment_status = 'NOT_PAID'
-      WHERE reference_number = ? AND payment_status = 'UNPAID'
-    `).bind(reference).run()
-    console.error('HitPay payment request failed:', error)
-    return json({ message: 'Could not start GCash checkout. Please try again or contact the resort.' }, 502)
-  }
-
-  let providerBody: unknown
-  try {
-    providerBody = await checkoutResponse.json()
-  } catch {
-    providerBody = null
-  }
-  if (!checkoutResponse.ok || !isRecord(providerBody) ||
-      typeof providerBody.id !== 'string' || typeof providerBody.url !== 'string') {
-    await env.DB.prepare(`
-      UPDATE bookings SET status = 'CANCELLED', payment_status = 'NOT_PAID'
-      WHERE reference_number = ? AND payment_status = 'UNPAID'
-    `).bind(reference).run()
-    console.error('HitPay rejected payment request creation:', checkoutResponse.status)
-    return json({ message: 'Could not start GCash checkout. Please try again or contact the resort.' }, 502)
-  }
-  const saved = await env.DB.prepare(`
-    UPDATE bookings SET gateway_checkout_id = ?
-    WHERE reference_number = ? AND payment_tier = 'ONLINE_GCASH_RESERVATION'
-      AND status = 'PENDING' AND gateway_checkout_id IS NULL
-  `).bind(providerBody.id, reference).run()
-  if (!saved.meta.changes) {
-    return json({ message: 'This booking could not be prepared for checkout. Please try again.' }, 409)
-  }
-  return json({ bookingId, referenceNumber: reference, checkoutUrl: providerBody.url }, 201)
-}
-
 async function createWalkInCashBooking(request: Request, env: Env, user: AuthUser) {
   const parsed = await readJson(request)
   if (parsed.tooLarge) return json({ message: 'Request body must be 10 KB or smaller.' }, 413)
@@ -1025,27 +894,33 @@ async function rescheduleBooking(request: Request, env: Env, bookingId: string) 
 
 /** Marks every pending cash hold past its check-in date as EXPIRED. Returns how many expired. */
 async function expirePendingHolds(env: Env) {
-  const [holds, checkouts] = await env.DB.batch([
+  const [holds, checkouts, rejected] = await env.DB.batch([
     env.DB.prepare(`
       UPDATE bookings SET status = 'EXPIRED', payment_status = 'NOT_PAID'
       WHERE status = 'PENDING_HOLD' AND expires_at <= ?
     `).bind(new Date().toISOString()),
-    // Unfinished GCash checkouts. A late payment is still recorded by recordGatewayPayment.
+    // Unfinished GCash checkouts.
     env.DB.prepare(`
       UPDATE bookings SET status = 'EXPIRED', payment_status = 'NOT_PAID'
       WHERE status = 'PENDING' AND payment_status = 'UNPAID'
         AND payment_tier = 'ONLINE_GCASH_RESERVATION' AND gateway_payment_id IS NULL
         AND julianday(created_at) <= julianday('now', ?)
     `).bind(`-${ABANDONED_CHECKOUT_HOURS} hours`),
+    // GCash payments the resort marked not received, once the check-in date has passed.
+    env.DB.prepare(`
+      UPDATE bookings SET status = 'EXPIRED'
+      WHERE status = 'PENDING' AND payment_status = 'NOT_PAID' AND paid_amount = 0
+        AND payment_tier = 'ONLINE_GCASH_RESERVATION' AND check_in_date < ?
+    `).bind(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })),
   ])
-  return (holds?.meta.changes ?? 0) + (checkouts?.meta.changes ?? 0)
+  return (holds?.meta.changes ?? 0) + (checkouts?.meta.changes ?? 0) + (rejected?.meta.changes ?? 0)
 }
 
 const holdRefusalMessages = {
   DATE_CONFIRMED: 'These dates were already secured by a confirmed booking. Please choose another date or accommodation.',
   DATE_BLOCKED: 'The resort has closed these dates (maintenance or private use). Please choose another date or accommodation.',
-  ALREADY_HELD: 'You already have an active walk-in voucher for these dates. Pay in cash at the resort, or secure them now with the GCash deposit.',
-  HOLD_LIMIT: `You can have up to ${MAX_ACTIVE_HOLDS_PER_USER} active walk-in vouchers at a time. Wait for one to expire, or secure a date with the GCash deposit.`,
+  ALREADY_HELD: 'You already have an active walk-in voucher for these dates. Pay in cash at the resort.',
+  HOLD_LIMIT: `You can have up to ${MAX_ACTIVE_HOLDS_PER_USER} active walk-in vouchers at a time. Wait for one to expire.`,
 } as const
 
 /** POST /api/bookings/pending-hold — Priority #2 "reserve now, pay cash later" walk-in voucher. */
@@ -1188,168 +1063,6 @@ async function confirmHoldWithCash(env: Env, bookingId: string) {
     return json({ message: 'Only an active walk-in voucher can be confirmed this way.' }, 409)
   }
   return json({ message: 'Could not generate a unique cash reference. Please try again.' }, 503)
-}
-
-async function recordGatewayPayment(
-  env: Env,
-  reference: string,
-  checkoutId: string,
-  paymentId: string,
-  amountCents: number,
-) {
-  const booking = await env.DB.prepare(`
-    SELECT id, payment_tier, payment_status, status, gateway_payment_id, gateway_checkout_id,
-           total_online_paid
-    FROM bookings WHERE reference_number = ?
-  `).bind(reference).first<{
-    id: string
-    payment_tier: PaymentTier | null
-    payment_status: PaymentStatus
-    status: BookingStatus
-    gateway_payment_id: string | null
-    gateway_checkout_id: string | null
-    total_online_paid: number
-  }>()
-  if (
-    !booking || booking.payment_tier !== 'ONLINE_GCASH_RESERVATION' ||
-    booking.gateway_checkout_id !== checkoutId
-  ) return false
-  if (booking.gateway_payment_id === paymentId) return true
-  if (
-    booking.gateway_payment_id ||
-    // An expired checkout can still be paid late: the guest's money must always be recorded.
-    !((booking.status === 'PENDING' && booking.payment_status === 'UNPAID') ||
-      (booking.status === 'EXPIRED' && booking.payment_status === 'NOT_PAID')) ||
-    Math.round(Number(booking.total_online_paid) * 100) !== amountCents
-  ) return false
-
-  const results = await env.DB.batch([
-    env.DB.prepare(`
-      UPDATE bookings
-      SET paid_amount = base_deposit_amount,
-          payment_status = 'PARTIALLY_PAID',
-          payment_amount = total_online_paid,
-          payment_method = 'GCASH',
-          status = CASE
-            WHEN EXISTS (
-              SELECT 1 FROM bookings other
-              WHERE other.id <> bookings.id AND other.status = 'CONFIRMED'
-                AND ${rowsOverlapSql('other', 'bookings')}
-            ) OR ${bookingRowBlockSql} THEN 'DATE_UNAVAILABLE'
-            ELSE 'CONFIRMED'
-          END,
-          gateway_payment_id = ?
-      WHERE id = ? AND reference_number = ? AND gateway_checkout_id = ?
-        AND payment_tier = 'ONLINE_GCASH_RESERVATION'
-        AND ((payment_status = 'UNPAID' AND status = 'PENDING')
-          OR (payment_status = 'NOT_PAID' AND status = 'EXPIRED'))
-        AND ROUND(total_online_paid * 100) = ?
-        AND gateway_payment_id IS NULL
-    `).bind(paymentId, booking.id, reference, checkoutId, amountCents),
-    env.DB.prepare(`
-      INSERT INTO booking_payments (
-        id, booking_id, amount, method, reference, payer_account, source, status, verified_at
-      )
-      SELECT ?, id, total_online_paid, 'GCASH', ?, '', 'CUSTOMER', 'RECEIVED', ?
-      FROM bookings
-      WHERE id = ? AND gateway_payment_id = ? AND changes() = 1
-    `).bind(crypto.randomUUID(), paymentId, new Date().toISOString(), booking.id, paymentId),
-    // Priority #1: a paid GCash reservation takes the slot from any unpaid hold.
-    releaseOverlappingHolds(env, booking.id),
-  ])
-  if (results[0]?.meta.changes && results[1]?.meta.changes) return true
-  const latest = await env.DB.prepare('SELECT gateway_payment_id FROM bookings WHERE id = ?')
-    .bind(booking.id).first<{ gateway_payment_id: string | null }>()
-  return latest?.gateway_payment_id === paymentId
-}
-
-function hex(bytes: Uint8Array) {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
-async function verifyHitpaySignature(rawBody: string, header: string | null, salt: string) {
-  const actual = header?.trim().toLowerCase() ?? ''
-  if (!/^[\da-f]{64}$/.test(actual)) return false
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(salt),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const expected = hex(new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))))
-  let difference = 0
-  for (let index = 0; index < expected.length; index += 1) {
-    difference |= expected.charCodeAt(index) ^ actual.charCodeAt(index)
-  }
-  return difference === 0
-}
-
-// The webhook body is only used to learn which payment request changed. Its status,
-// reference, and amount are always re-read from HitPay's API before recording a payment.
-async function fetchHitpayPaymentRequest(config: HitpayConfig, paymentRequestId: string) {
-  const providerResponse = await fetch(
-    `${config.apiBase}/payment-requests/${encodeURIComponent(paymentRequestId)}`,
-    { headers: hitpayHeaders(config), signal: AbortSignal.timeout(15_000) },
-  )
-  if (!providerResponse.ok) throw new Error(`HitPay status lookup failed with HTTP ${providerResponse.status}`)
-  const body: unknown = await providerResponse.json()
-  if (!isRecord(body) || body.id !== paymentRequestId || typeof body.status !== 'string') {
-    throw new Error('HitPay status lookup returned an unexpected payload')
-  }
-  const succeeded = Array.isArray(body.payments)
-    ? body.payments.find((payment) => isRecord(payment) && payment.status === 'succeeded')
-    : undefined
-  return {
-    id: paymentRequestId,
-    status: body.status,
-    referenceNumber: typeof body.reference_number === 'string' ? body.reference_number : '',
-    amount: Number(body.amount),
-    currency: typeof body.currency === 'string' ? body.currency.toUpperCase() : '',
-    paymentId: isRecord(succeeded) && typeof succeeded.id === 'string' ? succeeded.id : paymentRequestId,
-  }
-}
-
-async function hitpayWebhook(request: Request, env: Env) {
-  const hitpay = hitpayConfig(env)
-  if (!env.HITPAY_WEBHOOK_SALT || !hitpay) return json({ message: 'HitPay webhook is not configured.' }, 503)
-  const rawBody = await request.text()
-  if (encoder.encode(rawBody).length > 1024 * 1024) return json({ message: 'Webhook payload is too large.' }, 413)
-  if (!await verifyHitpaySignature(rawBody, request.headers.get('Hitpay-Signature'), env.HITPAY_WEBHOOK_SALT)) {
-    return json({ message: 'Invalid HitPay webhook signature.' }, 400)
-  }
-  let payload: unknown
-  try {
-    payload = JSON.parse(rawBody)
-  } catch {
-    return json({ message: 'Invalid HitPay webhook payload.' }, 400)
-  }
-  const eventObject = request.headers.get('Hitpay-Event-Object')
-  if ((eventObject && eventObject !== 'payment_request') || !isRecord(payload) || typeof payload.id !== 'string') {
-    return json({ received: true })
-  }
-
-  let paymentRequest: Awaited<ReturnType<typeof fetchHitpayPaymentRequest>>
-  try {
-    paymentRequest = await fetchHitpayPaymentRequest(hitpay, payload.id)
-  } catch (error) {
-    // A non-2xx response makes HitPay retry the webhook later.
-    console.error('Could not verify HitPay payment request:', error)
-    return json({ message: 'Could not verify the payment with HitPay.' }, 502)
-  }
-  if (paymentRequest.status !== 'completed' || paymentRequest.currency !== 'PHP' ||
-      !paymentRequest.referenceNumber || !Number.isFinite(paymentRequest.amount)) {
-    return json({ received: true })
-  }
-  const recorded = await recordGatewayPayment(
-    env,
-    paymentRequest.referenceNumber,
-    paymentRequest.id,
-    paymentRequest.paymentId,
-    Math.round(paymentRequest.amount * 100),
-  )
-  if (!recorded) console.error('Verified HitPay payment did not match a pending booking:', paymentRequest.referenceNumber)
-  return json({ received: true })
 }
 
 async function geminiReply(apiKey: string, model: string, messages: NonNullable<ReturnType<typeof parseChatMessages>>) {
@@ -1567,8 +1280,8 @@ async function createBooking(request: Request, env: Env, user: AuthUser) {
   const payerAccount = typeof form.get('payerAccount') === 'string' ? String(form.get('payerAccount')).trim() : ''
   const amountText = String(form.get('paymentAmount') ?? '')
   const paymentAmount = /^\d+(?:\.\d{1,2})?$/.test(amountText) ? Number(amountText) : Number.NaN
-  if (!paymentMethods.includes(method as PaymentMethod)) return json({ message: 'Choose GCash, Maya, bank transfer, or other.' }, 400)
-  if (!reference || reference.length > 120) return json({ message: 'Enter the transaction reference number (120 characters or fewer).' }, 400)
+  if (method !== 'GCASH') return json({ message: 'Online payment is by GCash only.' }, 400)
+  if (reference.replace(/[\s-]/g, '').length < 6 || reference.length > 120) return json({ message: 'Enter the full GCash reference number from your receipt.' }, 400)
   if (!payerAccount || payerAccount.length > 200) return json({ message: 'Enter the payer account name and number (200 characters or fewer).' }, 400)
 
   const adults = body.guests.adults
@@ -1590,45 +1303,71 @@ async function createBooking(request: Request, env: Env, user: AuthUser) {
   if (!pricing || !legacyAccommodationIds || !dateRangeIsValid || guestCount < 1 ||
       typeof body.estimatedTotal !== 'number' || Math.round(body.estimatedTotal * 100) !== Math.round(pricing.total * 100) ||
       typeof body.depositRequired !== 'number' || Math.round(body.depositRequired * 100) !== Math.round(pricing.deposit * 100) ||
-      !Number.isFinite(paymentAmount) || paymentAmount < pricing.deposit || paymentAmount > pricing.total) {
-    return json({ message: 'Booking dates, tour type, guests, pricing, or initial payment amount are invalid. Refresh the page and check the current rates.' }, 400)
+      !Number.isFinite(paymentAmount) ||
+      !(sameCents(paymentAmount, pricing.deposit) || sameCents(paymentAmount, pricing.total))) {
+    return json({ message: 'Booking dates, tour type, guests, pricing, or payment amount are invalid. Pay exactly 50% or the full amount, and refresh the page to check the current rates.' }, 400)
   }
+  const checkInDate = body.checkInDate as string
+  const checkOutDate = body.checkOutDate as string
+  if (checkInDate < new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })) {
+    return json({ message: 'Choose a check-in date from today onward.' }, 400)
+  }
+  if (await gcashReferenceInUse(env, reference)) return json({ message: REFERENCE_USED }, 409)
+  const spaceIds = JSON.stringify(legacyAccommodationIds)
+  const ownPending = await env.DB.prepare(`
+    SELECT id FROM bookings
+    WHERE user_id = ? AND status = 'PENDING' AND payment_status = 'PENDING_REVIEW'
+      AND check_in_date < ? AND check_out_date > ? AND ${requestedSpaceSql}
+    LIMIT 1
+  `).bind(user.id, checkOutDate, checkInDate, spaceIds).first()
+  if (ownPending) return json({ message: 'You already sent a payment for these dates. Please wait for the resort to verify it, or message the resort if you paid twice.' }, 409)
+  // The guest may already have paid: always record the proof. Verification decides the date.
+  const datesOpen = await stayIsOpen(env, spaceIds, checkInDate, checkOutDate)
 
   const bookingId = `TS-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
   const paymentId = crypto.randomUUID()
   const storageKey = `${crypto.randomUUID()}${file.extension}`
   await env.PAYMENT_PROOFS.put(storageKey, file.bytes, { httpMetadata: { contentType: file.mime } })
   try {
-    await env.DB.batch([
-      env.DB.prepare(`
-        INSERT INTO bookings (
-          id, user_id, accommodation_id, accommodation_name, tour_type, check_in_date, check_out_date,
-          adults, seniors_pwd, children, guest_count, estimated_total, deposit_required,
-          payment_amount, paid_amount, status, payment_status, payment_method, payment_reference,
-          proof_storage_key, proof_file_name, customer_name, customer_email,
-          reference_number, payment_tier, base_resort_price, base_deposit_amount,
-          gateway_fee_amount, total_online_paid, cash_balance_due, accommodation_ids, extra_guests
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', 'PENDING_REVIEW', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 0, 0, ?, ?, ?)
-      `).bind(
-        bookingId, user.id, legacyAccommodationIds[0], pricing.accommodationName, body.tourType,
-        body.checkInDate, body.checkOutDate, adults, seniorsPwd, children, guestCount,
-        pricing.total, pricing.deposit, paymentAmount, method, reference, storageKey, file.fileName,
-        user.name, user.email, `TRP-LEGACY-${bookingId}`, pricing.total, pricing.deposit, pricing.total,
-        JSON.stringify(legacyAccommodationIds),
-        pricing.extraGuests ? JSON.stringify(pricing.extraGuests) : null,
-      ),
-      env.DB.prepare(`
-        INSERT INTO booking_payments (
-          id, booking_id, amount, method, reference, payer_account, source, status,
-          proof_storage_key, proof_file_name
-        ) VALUES (?, ?, ?, ?, ?, ?, 'CUSTOMER', 'PENDING_REVIEW', ?, ?)
-      `).bind(paymentId, bookingId, paymentAmount, method, reference, payerAccount, storageKey, file.fileName),
-    ])
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const bookingReference = referenceNumber('GCASH')
+      try {
+        await env.DB.batch([
+          env.DB.prepare(`
+            INSERT INTO bookings (
+              id, user_id, accommodation_id, accommodation_name, tour_type, check_in_date, check_out_date,
+              adults, seniors_pwd, children, guest_count, estimated_total, deposit_required,
+              payment_amount, paid_amount, status, payment_status, payment_method, payment_reference,
+              proof_storage_key, proof_file_name, customer_name, customer_email,
+              reference_number, payment_tier, priority_rank, base_resort_price, base_deposit_amount,
+              gateway_fee_amount, total_online_paid, cash_balance_due, accommodation_ids, extra_guests
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', 'PENDING_REVIEW', 'GCASH', ?, ?, ?, ?, ?, ?, 'ONLINE_GCASH_RESERVATION', 1, ?, ?, 0, ?, ?, ?, ?)
+          `).bind(
+            bookingId, user.id, legacyAccommodationIds[0], pricing.accommodationName, body.tourType,
+            checkInDate, checkOutDate, adults, seniorsPwd, children, guestCount,
+            pricing.total, pricing.deposit, paymentAmount, reference, storageKey, file.fileName,
+            user.name, user.email, bookingReference, pricing.total, pricing.deposit, paymentAmount,
+            Math.round((pricing.total - paymentAmount) * 100) / 100,
+            JSON.stringify(legacyAccommodationIds),
+            pricing.extraGuests ? JSON.stringify(pricing.extraGuests) : null,
+          ),
+          env.DB.prepare(`
+            INSERT INTO booking_payments (
+              id, booking_id, amount, method, reference, payer_account, source, status,
+              proof_storage_key, proof_file_name
+            ) VALUES (?, ?, ?, 'GCASH', ?, ?, 'CUSTOMER', 'PENDING_REVIEW', ?, ?)
+          `).bind(paymentId, bookingId, paymentAmount, reference, payerAccount, storageKey, file.fileName),
+        ])
+        return json({ id: bookingId, referenceNumber: bookingReference, datesTaken: !datesOpen }, 201)
+      } catch (error) {
+        if (!(error instanceof Error && error.message.includes('UNIQUE constraint failed')) || attempt === 4) throw error
+      }
+    }
+    throw new Error('Could not generate a unique booking reference.')
   } catch (error) {
     await env.PAYMENT_PROOFS.delete(storageKey)
     throw error
   }
-  return json({ id: bookingId }, 201)
 }
 
 async function submitPaymentProof(request: Request, env: Env, user: AuthUser, bookingId: string) {
@@ -1645,16 +1384,18 @@ async function submitPaymentProof(request: Request, env: Env, user: AuthUser, bo
   const payerAccount = String(form.get('payerAccount') ?? '').trim()
   const amountText = String(form.get('paymentAmount') ?? '')
   const amount = /^\d+(?:\.\d{1,2})?$/.test(amountText) ? Number(amountText) : Number.NaN
-  if (!paymentMethods.includes(method as PaymentMethod)) return json({ message: 'Choose GCash, Maya, bank transfer, or other.' }, 400)
-  if (!reference || reference.length > 120) return json({ message: 'Enter the transaction reference number (120 characters or fewer).' }, 400)
+  if (method !== 'GCASH') return json({ message: 'Online payment is by GCash only.' }, 400)
+  if (reference.replace(/[\s-]/g, '').length < 6 || reference.length > 120) return json({ message: 'Enter the full GCash reference number from your receipt.' }, 400)
   if (!payerAccount || payerAccount.length > 200) return json({ message: 'Enter the payer account name and number (200 characters or fewer).' }, 400)
 
   const booking = await env.DB.prepare(`
-    SELECT user_id, status, payment_status, deposit_required, estimated_total, paid_amount
+    SELECT user_id, status, payment_status, deposit_required, estimated_total, paid_amount,
+           check_in_date, check_out_date, COALESCE(accommodation_ids, json_array(accommodation_id)) AS space_ids
     FROM bookings WHERE id = ?
   `).bind(bookingId).first<{
     user_id: string; status: BookingStatus; payment_status: PaymentStatus
     deposit_required: number; estimated_total: number; paid_amount: number
+    check_in_date: string; check_out_date: string; space_ids: string
   }>()
   if (!booking || booking.user_id !== user.id) return json({ message: 'Booking not found.' }, 404)
   const minimum = Number(booking.paid_amount) > 0 ? 0.01 : Number(booking.deposit_required)
@@ -1666,6 +1407,15 @@ async function submitPaymentProof(request: Request, env: Env, user: AuthUser, bo
         : `Payment must be at least ${Number(booking.deposit_required).toFixed(2)} and no more than the total ${Number(booking.estimated_total).toFixed(2)}.`,
     }, 400)
   }
+
+  if (Number(booking.paid_amount) === 0) {
+    if (!(sameCents(amount, Number(booking.deposit_required)) || sameCents(amount, Number(booking.estimated_total)))) {
+      return json({ message: 'Pay exactly 50% or the full amount.' }, 400)
+    }
+  }
+  const datesTaken = Number(booking.paid_amount) === 0 &&
+    !(await stayIsOpen(env, booking.space_ids, booking.check_in_date, booking.check_out_date))
+  if (await gcashReferenceInUse(env, reference)) return json({ message: REFERENCE_USED }, 409)
 
   const paymentId = crypto.randomUUID()
   const storageKey = `${crypto.randomUUID()}${file.extension}`
@@ -1703,12 +1453,21 @@ async function submitPaymentProof(request: Request, env: Env, user: AuthUser, bo
     await env.PAYMENT_PROOFS.delete(storageKey)
     throw error
   }
-  return json({ message: 'Payment proof sent to the resort for review.' })
+  return json({ message: 'Payment proof sent to the resort for review.', datesTaken })
 }
 
 async function reviewPayment(env: Env, bookingId: string, paymentId: string, received: boolean) {
   const timestamp = new Date().toISOString()
+  const duplicateReferenceSql = `EXISTS (
+    SELECT 1 FROM booking_payments d
+    WHERE d.id <> p.id AND d.status = 'RECEIVED' AND d.source = 'CUSTOMER' AND d.method <> 'CASH'
+      AND ${normalizedReference('d.reference')} = ${normalizedReference('p.reference')}
+  )`
   if (received) {
+    const duplicate = await env.DB.prepare(`
+      SELECT 1 AS used FROM booking_payments p WHERE p.id = ? AND p.booking_id = ? AND ${duplicateReferenceSql}
+    `).bind(paymentId, bookingId).first<{ used: number }>()
+    if (duplicate) return 'DUPLICATE_REFERENCE' as const
     const results = await env.DB.batch([
       env.DB.prepare(`
         UPDATE bookings
@@ -1720,6 +1479,7 @@ async function reviewPayment(env: Env, bookingId: string, paymentId: string, rec
               ELSE 'PARTIALLY_PAID'
             END,
             status = CASE
+              WHEN status = 'CONFIRMED' THEN 'CONFIRMED'
               WHEN EXISTS (
                 SELECT 1 FROM bookings other
                 WHERE other.id <> bookings.id AND other.status = 'CONFIRMED'
@@ -1732,6 +1492,7 @@ async function reviewPayment(env: Env, bookingId: string, paymentId: string, rec
             SELECT 1 FROM booking_payments p
             WHERE p.id = ? AND p.booking_id = bookings.id AND p.status = 'PENDING_REVIEW'
               AND ROUND((paid_amount + p.amount) * 100) <= ROUND(estimated_total * 100)
+              AND NOT ${duplicateReferenceSql}
           )
       `).bind(paymentId, bookingId, paymentId, bookingId, bookingId, paymentId),
       env.DB.prepare(`
@@ -1775,6 +1536,7 @@ async function recordCashPayment(env: Env, bookingId: string, amount: number) {
           payment_method = 'CASH', payment_amount = ?, payment_reference = '',
           proof_storage_key = NULL, proof_file_name = NULL,
           status = CASE
+            WHEN status = 'CONFIRMED' THEN 'CONFIRMED'
             WHEN EXISTS (
               SELECT 1 FROM bookings other
               WHERE other.id <> bookings.id AND other.status = 'CONFIRMED'
@@ -1809,15 +1571,6 @@ async function api(request: Request, env: Env): Promise<Response | null> {
     const origin = request.headers.get('Origin')
     if (origin && origin !== new URL(request.url).origin) {
       return json({ message: 'Request origin is not allowed.' }, 403)
-    }
-  }
-  if (method === 'POST' && (pathname === '/api/payments/hitpay-webhook' || pathname === '/api/webhooks/hitpay')) {
-    try {
-      return await hitpayWebhook(request, env)
-    } catch (error) {
-      // Generic body (no stack or DB details); the 5xx makes HitPay retry the delivery.
-      console.error('HitPay webhook failed:', error)
-      return json({ message: 'The server could not process the webhook.' }, 500)
     }
   }
   // Multipart uploads (one ≤5 MB screenshot + small fields): refuse oversized bodies before buffering.
@@ -1985,21 +1738,17 @@ async function api(request: Request, env: Env): Promise<Response | null> {
     }
 
     const needsAuth = pathname.startsWith('/api/bookings') ||
-      pathname.startsWith('/api/admin/') ||
-      pathname === '/api/payments/create-gcash-checkout'
+      pathname.startsWith('/api/admin/')
     if (needsAuth && !auth) return json({ message: 'Please sign in to continue.' }, 401)
     if (pathname.startsWith('/api/admin/') && auth?.role !== 'ADMIN') {
       return json({ message: 'You do not have access to this page.' }, 403)
     }
 
     if (method === 'POST' && pathname === '/api/bookings' && auth) {
-      return createBooking(request, env, auth)
-    }
-    if (method === 'POST' && pathname === '/api/payments/create-gcash-checkout' && auth) {
-      if (!await limited(env, request, 'gcash-checkout', 60 * 60 * 1000, 20)) {
-        return json({ message: 'Too many checkout attempts. Please try again later.' }, 429)
+      if (!await limited(env, request, 'gcash-proof', 60 * 60 * 1000, 20)) {
+        return json({ message: 'Too many payment uploads. Please try again later.' }, 429)
       }
-      return createGcashCheckout(request, env, auth)
+      return createBooking(request, env, auth)
     }
     if (method === 'POST' && pathname === '/api/bookings/pending-hold' && auth) {
       if (!await limited(env, request, 'pending-hold', 60 * 60 * 1000, 10)) {
@@ -2012,7 +1761,12 @@ async function api(request: Request, env: Env): Promise<Response | null> {
       return json({ bookings: await loadBookings(env, auth.id) })
     }
     const submitId = getPathId(pathname, /^\/api\/bookings\/([^/]+)\/payment-proof$/)
-    if (method === 'POST' && submitId && auth) return submitPaymentProof(request, env, auth, submitId)
+    if (method === 'POST' && submitId && auth) {
+      if (!await limited(env, request, 'gcash-proof', 60 * 60 * 1000, 20)) {
+        return json({ message: 'Too many payment uploads. Please try again later.' }, 429)
+      }
+      return submitPaymentProof(request, env, auth, submitId)
+    }
 
     if (method === 'GET' && pathname === '/api/admin/bookings' && auth?.role === 'ADMIN') {
       await expirePendingHolds(env)
@@ -2060,9 +1814,18 @@ async function api(request: Request, env: Env): Promise<Response | null> {
       if (!isRecord(body) || !bookingStatuses.includes(body.status as BookingStatus) || body.status === 'CONFIRMED') {
         return json({ message: 'Bookings are confirmed only after a payment is verified. You can cancel a booking here.' }, 400)
       }
-      const result = await env.DB.prepare('UPDATE bookings SET status = ? WHERE id = ?')
-        .bind(body.status, bookingId).run()
-      if (!result.meta.changes) return json({ message: 'Booking not found.' }, 404)
+      const result = await env.DB.prepare(`
+        UPDATE bookings SET status = ?
+        WHERE id = ? AND NOT EXISTS (
+          SELECT 1 FROM booking_payments WHERE booking_id = bookings.id AND status = 'PENDING_REVIEW'
+        )
+      `).bind(body.status, bookingId).run()
+      if (!result.meta.changes) {
+        const exists = await env.DB.prepare('SELECT 1 AS found FROM bookings WHERE id = ?').bind(bookingId).first()
+        return exists
+          ? json({ message: 'Verify this payment or mark it not received before cancelling the booking.' }, 409)
+          : json({ message: 'Booking not found.' }, 404)
+      }
       return json({ message: 'Booking updated.' })
     }
 
@@ -2103,6 +1866,9 @@ async function api(request: Request, env: Env): Promise<Response | null> {
       const body = parsed.body
       if (!isRecord(body) || typeof body.received !== 'boolean') return json({ message: 'Choose whether the payment was received.' }, 400)
       const updated = await reviewPayment(env, id, paymentId, body.received)
+      if (updated === 'DUPLICATE_REFERENCE') {
+        return json({ message: 'This GCash reference number was already verified on another payment. Check your GCash history before confirming.' }, 409)
+      }
       if (!updated) return json({ message: 'This payment is no longer waiting for review.' }, 409)
       if (updated === 'DATE_UNAVAILABLE') {
         return json({

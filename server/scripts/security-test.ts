@@ -8,29 +8,23 @@
  *   --with-conflict-test     records a same-day walk-in for Balai Delnor (exclusive whole resort),
  *                            checks every other space is refused, then cancels it.
  *                            Needs admin credentials. It briefly blocks TODAY, so use staging.
- *   --wait-payment=<min>     after creating a sandbox GCash checkout, poll up to <min> minutes
- *                            while you pay it in the HitPay sandbox, then verify the webhook
- *                            confirmed the booking (the real end-to-end HMAC + receipt path).
  *
  * Environment (all optional; secrets are never printed):
  *   SECTEST_ADMIN_LOGIN, SECTEST_ADMIN_PASSWORD   admin account: positive RBAC check + cleanup
- *   HITPAY_WEBHOOK_SALT                           same salt as the server: enables the signed-webhook checks
  *
  * The script creates one guest account named sectest-<random> plus a few PENDING bookings for it.
  * With admin credentials it deletes them at the end; otherwise it prints the username to remove.
  * It sends one wrong-password login (the sign-in limit is 5 failures per 15 minutes per IP).
  */
-import { createHmac, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 
 // ---------- setup ----------
 const args = process.argv.slice(2)
 const BASE = (args.find((arg) => !arg.startsWith('--')) ?? process.env.SECTEST_BASE_URL ?? 'http://localhost:5000')
   .replace(/\/+$/, '')
 const withConflictTest = args.includes('--with-conflict-test')
-const waitPaymentMinutes = Number(args.find((arg) => arg.startsWith('--wait-payment='))?.split('=')[1] ?? 0)
 const ADMIN_LOGIN = process.env.SECTEST_ADMIN_LOGIN ?? ''
 const ADMIN_PASSWORD = process.env.SECTEST_ADMIN_PASSWORD ?? ''
-const WEBHOOK_SALT = process.env.HITPAY_WEBHOOK_SALT ?? ''
 
 type Outcome = 'PASS' | 'FAIL' | 'SKIP' | 'WARN'
 const results: { outcome: Outcome, name: string, detail: string }[] = []
@@ -53,7 +47,7 @@ interface ApiResult { status: number, body: any, text: string, headers: Headers 
 // Every response is scanned for leaked internals (stack traces, connection strings, SQL errors).
 const LEAK_PATTERNS = [
   /\bat [\w.<>]+ \(.*:\d+:\d+\)/, /postgres(ql)?:\/\//i, /\bSQLITE_/, /\bD1_ERROR\b/, /node_modules/,
-  /syntax error at or near/i, /hyperdrive/i, /JWT_SECRET=|HITPAY_API_KEY=|GEMINI_API_KEY=/,
+  /syntax error at or near/i, /hyperdrive/i, /JWT_SECRET=|GEMINI_API_KEY=/,
 ]
 const leaks: string[] = []
 
@@ -106,8 +100,6 @@ function bookingForm(booking: Record<string, unknown>, paymentAmount: string) {
   form.set('proof', new Blob([PNG], { type: 'image/png' }), 'proof.png')
   return form
 }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // ---------- tests ----------
 async function main() {
@@ -292,67 +284,6 @@ async function main() {
         const cancel = await api('PATCH', `/api/admin/bookings/${walkIn.body.bookingId}`, { token: adminToken, json: { status: 'CANCELLED' } })
         check(cancel.status === 200, 'Cleanup: exclusive walk-in cancelled', `HTTP ${cancel.status}`)
       }
-    }
-  }
-
-  section('HitPay webhook')
-  const webhookPath = '/api/webhooks/hitpay'
-  const fakeEvent = JSON.stringify({ id: `sectest-${randomBytes(8).toString('hex')}`, status: 'completed', amount: '1.00', reference_number: 'TRP-GCASH-00000000-0000' })
-  const unsigned = await api('POST', webhookPath, { raw: fakeEvent, headers: { 'Hitpay-Event-Object': 'payment_request' } })
-  if (unsigned.status === 503) {
-    record('SKIP', 'Webhook signature checks', 'HitPay is not configured on this server (HITPAY_API_KEY / HITPAY_MODE / HITPAY_WEBHOOK_SALT)')
-  } else {
-    check(unsigned.status === 400, 'Webhook without a signature is rejected', `HTTP ${unsigned.status}`)
-    const badSignature = await api('POST', webhookPath, { raw: fakeEvent, headers: { 'Hitpay-Signature': '0'.repeat(64), 'Hitpay-Event-Object': 'payment_request' } })
-    check(badSignature.status === 400, 'Webhook with an invalid HMAC is rejected', `HTTP ${badSignature.status}`)
-    const malformedSignature = await api('POST', webhookPath, { raw: fakeEvent, headers: { 'Hitpay-Signature': 'not-hex', 'Hitpay-Event-Object': 'payment_request' } })
-    check(malformedSignature.status === 400, 'Webhook with a malformed signature is rejected', `HTTP ${malformedSignature.status}`)
-    if (!WEBHOOK_SALT) {
-      record('SKIP', 'Valid-HMAC webhook checks', 'set HITPAY_WEBHOOK_SALT to the server\'s salt')
-    } else {
-      const signature = createHmac('sha256', WEBHOOK_SALT).update(fakeEvent).digest('hex')
-      const signed = await api('POST', webhookPath, { raw: fakeEvent, headers: { 'Hitpay-Signature': signature, 'Hitpay-Event-Object': 'payment_request' } })
-      check(signed.status !== 400, 'Correctly signed webhook passes the HMAC check', `HTTP ${signed.status}`)
-      // A forged-but-signed event for an unknown payment must not confirm anything: the server
-      // re-reads the payment from HitPay, which does not know this id.
-      const replay = await api('POST', webhookPath, { raw: fakeEvent, headers: { 'Hitpay-Signature': signature, 'Hitpay-Event-Object': 'payment_request' } })
-      check(replay.status !== 500 && replay.status === signed.status, 'Duplicate delivery is handled the same way, no crash', `HTTP ${replay.status}`)
-      const tamperedBody = fakeEvent.replace('"1.00"', '"9999.00"')
-      const tampered = await api('POST', webhookPath, { raw: tamperedBody, headers: { 'Hitpay-Signature': signature, 'Hitpay-Event-Object': 'payment_request' } })
-      check(tampered.status === 400, 'Body edited after signing is rejected', `HTTP ${tampered.status}`)
-    }
-  }
-
-  section('GCash checkout & TRP-GCASH receipt')
-  const checkout = await api('POST', '/api/payments/create-gcash-checkout', {
-    token: guestToken,
-    json: { ...honest, checkInDate: manilaDate(210), checkOutDate: manilaDate(211), estimatedTotal: 1, totalOnlinePaid: 1, amount: 1 },
-  })
-  if (checkout.status === 503) {
-    record('SKIP', 'GCash checkout', 'HitPay is not configured on this server')
-  } else if (check(checkout.status === 201, 'Checkout is created (client-sent amounts are ignored)', `HTTP ${checkout.status}`)) {
-    const reference: string = checkout.body.referenceNumber ?? ''
-    check(/^TRP-GCASH-\d{8}-\d{4}$/.test(reference), 'Reference follows TRP-GCASH-YYYYMMDD-NNNN', reference)
-    check(/^https:\/\//.test(checkout.body.checkoutUrl ?? ''), 'Checkout URL is HTTPS (HitPay hosted page)')
-    const pending = (await api('GET', '/api/bookings/mine', { token: guestToken })).body?.bookings
-      ?.find((booking: any) => booking.referenceNumber === reference)
-    if (pending) {
-      check(pending.status === 'PENDING', 'Booking stays PENDING until HitPay\'s webhook verifies payment', `status=${pending.status}`)
-      check(Number(pending.estimatedTotal) === 2500, 'Checkout booking uses the server price, not the tampered ₱1', `₱${pending.estimatedTotal}`)
-    }
-    if (waitPaymentMinutes > 0) {
-      console.log(`\n  Pay this sandbox checkout within ${waitPaymentMinutes} min:\n  ${checkout.body.checkoutUrl}\n`)
-      const deadline = Date.now() + waitPaymentMinutes * 60_000
-      let status = 'PENDING'
-      while (Date.now() < deadline && status === 'PENDING') {
-        await sleep(10_000)
-        const booking = (await api('GET', '/api/bookings/mine', { token: guestToken })).body?.bookings
-          ?.find((item: any) => item.referenceNumber === reference)
-        status = booking?.status ?? status
-      }
-      check(status === 'CONFIRMED', 'Signed HitPay webhook confirmed the booking end-to-end', `status=${status}`)
-    } else {
-      record('SKIP', 'Live webhook confirmation', 'pass --wait-payment=5 and pay the sandbox checkout')
     }
   }
 

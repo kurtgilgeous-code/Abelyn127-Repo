@@ -26,10 +26,8 @@ import {
 } from './bookingController.js'
 import {
   confirmHoldWithCash,
-  createGcashCheckout,
   createPendingHoldBooking,
   createWalkInBooking,
-  hitpayWebhook,
 } from './paymentsController.js'
 import { geraintChat } from './chatController.js'
 import { parseAccommodationIds } from './pricing.js'
@@ -60,11 +58,6 @@ app.use((request, response, next) => {
   }
   next()
 })
-app.post(
-  ['/api/webhooks/hitpay', '/api/payments/hitpay-webhook'],
-  express.raw({ type: () => true, limit: '1mb' }),
-  hitpayWebhook,
-)
 app.use(express.json({ limit: '10kb' }))
 
 app.get('/api/health', async (_request, response) => {
@@ -121,12 +114,12 @@ const holdLimiter = rateLimit({
   message: { message: 'Too many hold requests. Please try again later.' },
 })
 
-const checkoutLimiter = rateLimit({
+const gcashProofLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 20,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  message: { message: 'Too many checkout attempts. Please try again later.' },
+  message: { message: 'Too many payment uploads. Please try again later.' },
 })
 
 const paymentProofUpload = multer({
@@ -197,16 +190,10 @@ app.get('/api/admin/me', requireAuthConfiguration, requireUser, requireAdmin, (r
 })
 
 app.post(
-  '/api/payments/create-gcash-checkout',
-  requireAuthConfiguration,
-  requireUser,
-  checkoutLimiter,
-  createGcashCheckout,
-)
-app.post(
   '/api/bookings',
   requireAuthConfiguration,
   requireUser,
+  gcashProofLimiter,
   paymentProofUpload.single('proof'),
   createCustomerBooking,
 )
@@ -216,6 +203,7 @@ app.post(
   '/api/bookings/:id/payment-proof',
   requireAuthConfiguration,
   requireUser,
+  gcashProofLimiter,
   paymentProofUpload.single('proof'),
   submitPaymentProof,
 )

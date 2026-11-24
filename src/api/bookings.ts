@@ -98,15 +98,16 @@ export async function fetchAdminBookings(token: string) {
   }))
 }
 
-export async function createBookingRequest(
+/** GCash booking with its payment screenshot. It stays open to others until the admin verifies it. */
+export async function createGcashBooking(
   token: string,
-  booking: Omit<Booking, 'id' | 'referenceNumber' | 'paymentTier' | 'baseResortPrice' | 'baseDepositAmount' | 'gatewayFeeAmount' | 'totalOnlinePaid' | 'cashBalanceDue' | 'gatewayPaymentId' | 'createdAt' | 'status' | 'paymentStatus' | 'paymentAmount' | 'paidAmount' | 'paymentMethod' | 'paymentReference' | 'proofFileName' | 'hasPaymentProof' | 'payments' | 'expiresAt' | 'priorityRank' | 'holdReferenceNumber'>,
-  payment: { amount: number; method: PaymentMethod; reference: string; payerAccount: string; proof: File },
+  booking: StayRequest & { estimatedTotal: number; depositRequired: number },
+  payment: { amount: number; reference: string; payerAccount: string; proof: File },
 ) {
   const formData = new FormData()
   formData.append('booking', JSON.stringify(booking))
-  formData.append('paymentAmount', String(payment.amount))
-  formData.append('paymentMethod', payment.method)
+  formData.append('paymentAmount', payment.amount.toFixed(2))
+  formData.append('paymentMethod', 'GCASH')
   formData.append('paymentReference', payment.reference)
   formData.append('payerAccount', payment.payerAccount)
   formData.append('proof', payment.proof)
@@ -117,44 +118,14 @@ export async function createBookingRequest(
   })
   if (!response.ok) throw new Error(await errorMessage(response))
   const body: unknown = await response.json()
-  if (typeof body !== 'object' || body === null || !('id' in body) || typeof body.id !== 'string') {
-    throw new Error('The server returned an invalid booking response.')
-  }
-  return body.id
-}
-
-export async function createGcashCheckout(
-  token: string,
-  booking: StayRequest,
-) {
-  const response = await fetch('/api/payments/create-gcash-checkout', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(booking),
-  })
-  if (!response.ok) throw new Error(await errorMessage(response))
-  const body: unknown = await response.json()
   if (
     typeof body !== 'object' || body === null ||
-    !('bookingId' in body) || typeof body.bookingId !== 'string' ||
-    !('referenceNumber' in body) || typeof body.referenceNumber !== 'string' ||
-    !('checkoutUrl' in body) || typeof body.checkoutUrl !== 'string'
+    !('id' in body) || typeof body.id !== 'string' ||
+    !('referenceNumber' in body) || typeof body.referenceNumber !== 'string'
   ) {
-    throw new Error('The server returned an invalid GCash checkout response.')
+    throw new Error('The server returned an invalid booking response.')
   }
-  const checkoutUrl = new URL(body.checkoutUrl)
-  const trustedHost = checkoutUrl.hostname === 'hit-pay.com' || checkoutUrl.hostname.endsWith('.hit-pay.com')
-  if (checkoutUrl.protocol !== 'https:' || !trustedHost) {
-    throw new Error('The server returned an untrusted GCash checkout URL.')
-  }
-  return {
-    bookingId: body.bookingId,
-    referenceNumber: body.referenceNumber,
-    checkoutUrl: checkoutUrl.href,
-  }
+  return { id: body.id, referenceNumber: body.referenceNumber, datesTaken: 'datesTaken' in body && body.datesTaken === true }
 }
 
 export async function createWalkInCashBooking(
@@ -193,7 +164,7 @@ export async function submitPaymentProof(
   formData.append('paymentMethod', input.paymentMethod)
   formData.append('paymentReference', input.paymentReference)
   formData.append('payerAccount', input.payerAccount)
-  formData.append('paymentAmount', String(input.paymentAmount))
+  formData.append('paymentAmount', input.paymentAmount.toFixed(2))
   formData.append('proof', input.proof)
   const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}/payment-proof`, {
     method: 'POST',
@@ -201,6 +172,8 @@ export async function submitPaymentProof(
     body: formData,
   })
   if (!response.ok) throw new Error(await errorMessage(response))
+  const body: unknown = await response.json()
+  return { datesTaken: typeof body === 'object' && body !== null && 'datesTaken' in body && body.datesTaken === true }
 }
 
 export async function updateBookingReview(

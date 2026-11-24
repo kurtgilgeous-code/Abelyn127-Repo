@@ -379,8 +379,23 @@ const bookingSelect = `
   LEFT JOIN users u ON u.id = b.user_id
 `
 
+const normalizedReference = (column: string) => `UPPER(REPLACE(REPLACE(${column}, ' ', ''), '-', ''))`
+
+/** A GCash reference can back only one payment, unless the resort marked it not received. */
+async function gcashReferenceInUse(client: { query: (text: string, values: unknown[]) => Promise<{ rowCount: number | null }> }, reference: string) {
+  const result = await client.query(
+    `SELECT 1 FROM booking_payments
+     WHERE source = 'CUSTOMER' AND method <> 'CASH' AND status <> 'NOT_RECEIVED'
+       AND ${normalizedReference('reference')} = ${normalizedReference('$1')}
+     LIMIT 1`,
+    [reference],
+  )
+  return Boolean(result.rowCount)
+}
+
 export async function createBooking(input: {
   id: string
+  referenceNumber: string
   userId: string
   customerName: string
   customerEmail: string
@@ -402,20 +417,36 @@ export async function createBooking(input: {
   payerAccount: string
   proofStorageKey: string
   proofFileName: string
-}) {
+}): Promise<'CREATED' | 'DUPLICATE_REFERENCE' | 'ALREADY_SENT'> {
   await ensureUserSchema()
   const client = await getPool().connect()
   try {
     await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('booking_confirmation', 0))")
+    if (await gcashReferenceInUse(client, input.paymentReference)) {
+      await client.query('ROLLBACK')
+      return 'DUPLICATE_REFERENCE'
+    }
+    const ownPending = await client.query(
+      `SELECT id FROM bookings
+       WHERE user_id = $5 AND status = 'PENDING' AND payment_status = 'PENDING_REVIEW'
+         AND ${rangeOverlapSql('$1', '$2', '$3', '$4')}
+       LIMIT 1`,
+      [input.accommodationIds, input.checkInDate, input.checkOutDate, wholeResortAccommodationIds, input.userId],
+    )
+    if (ownPending.rowCount) {
+      await client.query('ROLLBACK')
+      return 'ALREADY_SENT'
+    }
     await client.query(
     `INSERT INTO bookings (
-       id, user_id, customer_name, customer_email, reference_number,
+       id, user_id, customer_name, customer_email, reference_number, payment_tier, priority_rank,
        base_resort_price, base_deposit_amount, gateway_fee_amount, total_online_paid, cash_balance_due,
        accommodation_id, accommodation_name, check_in_date,
        tour_type, check_out_date, adults, seniors_pwd, children, guest_count,
        estimated_total, deposit_required, payment_status, payment_amount,
        payment_method, payment_reference, proof_storage_key, proof_file_name, accommodation_ids, extra_guests
-     ) VALUES ($1, $2, $3, $4, 'TRP-LEGACY-' || $1, $5, $6, 0, 0, $5, ($7::text[])[1], $8, $9, $10, $11, $12, $13, $14, $15, $5, $6, 'PENDING_REVIEW', $16, $17, $18, $19, $20, $7::text[], $21)`,
+     ) VALUES ($1, $2, $3, $4, $22, 'ONLINE_GCASH_RESERVATION', 1, $5::numeric, $6, 0, $16::numeric, $5::numeric - $16::numeric, ($7::text[])[1], $8, $9, $10, $11, $12, $13, $14, $15, $5, $6, 'PENDING_REVIEW', $16, $17, $18, $19, $20, $7::text[], $21)`,
     [
       input.id, input.userId, input.customerName, input.customerEmail,
       input.estimatedTotal, input.depositRequired,
@@ -424,6 +455,7 @@ export async function createBooking(input: {
       input.children, input.guestCount,
       input.paymentAmount, input.paymentMethod, input.paymentReference,
       input.proofStorageKey, input.proofFileName, input.extraGuests ? JSON.stringify(input.extraGuests) : null,
+      input.referenceNumber,
     ],
     )
     await client.query(
@@ -437,82 +469,13 @@ export async function createBooking(input: {
       ],
     )
     await client.query('COMMIT')
+    return 'CREATED'
   } catch (error) {
     await client.query('ROLLBACK')
     throw error
   } finally {
     client.release()
   }
-}
-
-export async function createGcashReservation(input: {
-  id: string
-  userId: string
-  customerName: string
-  customerEmail: string
-  referenceNumber: string
-  accommodationIds: string[]
-  accommodationName: string
-  tourType: TourType
-  checkInDate: string
-  checkOutDate: string
-  adults: number
-  seniorsPwd: number
-  children: number
-  guestCount: number
-  extraGuests?: { adults: number; seniorsPwd: number; children: number } | null
-  baseResortPrice: number
-  baseDepositAmount: number
-  gatewayFeeAmount: number
-  totalOnlinePaid: number
-  cashBalanceDue: number
-}) {
-  await ensureUserSchema()
-  await getPool().query(
-    `INSERT INTO bookings (
-       id, user_id, customer_name, customer_email, reference_number, payment_tier,
-       base_resort_price, base_deposit_amount, gateway_fee_amount, total_online_paid,
-       cash_balance_due, accommodation_id, accommodation_name, tour_type,
-       check_in_date, check_out_date, adults, seniors_pwd, children, guest_count,
-       estimated_total, deposit_required, payment_amount, paid_amount, status,
-       payment_status, payment_method, payment_reference, priority_rank, accommodation_ids, extra_guests
-     ) VALUES (
-       $1, $2, $3, $4, $5, 'ONLINE_GCASH_RESERVATION',
-       $6, $7, $8, $9, $10, ($11::text[])[1], $12, $13, $14, $15, $16, $17,
-       $18, $19, $6, $7, $9, 0, 'PENDING', 'UNPAID', 'GCASH', $5, 1, $11::text[], $20
-     )`,
-    [
-      input.id, input.userId, input.customerName, input.customerEmail,
-      input.referenceNumber, input.baseResortPrice, input.baseDepositAmount,
-      input.gatewayFeeAmount, input.totalOnlinePaid, input.cashBalanceDue,
-      input.accommodationIds, input.accommodationName, input.tourType,
-      input.checkInDate, input.checkOutDate, input.adults, input.seniorsPwd,
-      input.children, input.guestCount, input.extraGuests ? JSON.stringify(input.extraGuests) : null,
-    ],
-  )
-}
-
-export async function saveGatewayCheckoutId(referenceNumber: string, checkoutId: string) {
-  await ensureUserSchema()
-  const result = await getPool().query(
-    `UPDATE bookings
-     SET gateway_checkout_id = $2
-     WHERE reference_number = $1 AND payment_tier = 'ONLINE_GCASH_RESERVATION'
-       AND status = 'PENDING' AND gateway_checkout_id IS NULL`,
-    [referenceNumber, checkoutId],
-  )
-  return result.rowCount === 1
-}
-
-export async function cancelUnpaidGcashReservation(referenceNumber: string) {
-  await ensureUserSchema()
-  await getPool().query(
-    `UPDATE bookings
-     SET status = 'CANCELLED', payment_status = 'NOT_PAID'
-     WHERE reference_number = $1 AND payment_tier = 'ONLINE_GCASH_RESERVATION'
-       AND payment_status = 'UNPAID'`,
-    [referenceNumber],
-  )
 }
 
 /** Marks every pending cash hold past its check-in date as EXPIRED. Returns how many expired. */
@@ -523,7 +486,7 @@ export async function expirePendingHolds() {
      SET status = 'EXPIRED', payment_status = 'NOT_PAID'
      WHERE status = 'PENDING_HOLD' AND expires_at <= clock_timestamp()`,
   )
-  // Unfinished GCash checkouts. A late payment is still recorded by recordGatewayPayment.
+  // Unfinished GCash checkouts.
   const checkouts = await getPool().query(
     `UPDATE bookings
      SET status = 'EXPIRED', payment_status = 'NOT_PAID'
@@ -532,7 +495,15 @@ export async function expirePendingHolds() {
        AND created_at <= clock_timestamp() - ($1::int * interval '1 hour')`,
     [ABANDONED_CHECKOUT_HOURS],
   )
-  return (holds.rowCount ?? 0) + (checkouts.rowCount ?? 0)
+  // GCash payments the resort marked not received, once the check-in date has passed.
+  const rejected = await getPool().query(
+    `UPDATE bookings
+     SET status = 'EXPIRED'
+     WHERE status = 'PENDING' AND payment_status = 'NOT_PAID' AND paid_amount = 0
+       AND payment_tier = 'ONLINE_GCASH_RESERVATION'
+       AND check_in_date < (clock_timestamp() AT TIME ZONE 'Asia/Manila')::date`,
+  )
+  return (holds.rowCount ?? 0) + (checkouts.rowCount ?? 0) + (rejected.rowCount ?? 0)
 }
 
 /** Whether an unexpired pending cash hold overlaps the requested stay. */
@@ -802,85 +773,6 @@ export async function createWalkInCashBooking(input: {
   }
 }
 
-export async function recordGatewayPayment(input: {
-  referenceNumber: string
-  checkoutId: string
-  gatewayPaymentId: string
-  amount: number
-}): Promise<false | 'DATE_UNAVAILABLE' | true> {
-  await ensureUserSchema()
-  const client = await getPool().connect()
-  try {
-    await client.query('BEGIN')
-    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('booking_confirmation', 0))")
-    const result = await client.query(
-      `SELECT id, payment_tier, payment_status, status, gateway_payment_id,
-              gateway_checkout_id, total_online_paid, base_deposit_amount, accommodation_id,
-              check_in_date, check_out_date
-       FROM bookings WHERE reference_number = $1 FOR UPDATE`,
-      [input.referenceNumber],
-    )
-    const booking = result.rows[0]
-    if (
-      !booking || booking.payment_tier !== 'ONLINE_GCASH_RESERVATION' ||
-      booking.gateway_checkout_id !== input.checkoutId
-    ) {
-      await client.query('ROLLBACK')
-      return false
-    }
-    if (booking.gateway_payment_id === input.gatewayPaymentId) {
-      await client.query('ROLLBACK')
-      return true
-    }
-    if (
-      booking.gateway_payment_id ||
-      // An expired checkout can still be paid late: the guest's money must always be recorded.
-      !((booking.status === 'PENDING' && booking.payment_status === 'UNPAID') ||
-        (booking.status === 'EXPIRED' && booking.payment_status === 'NOT_PAID')) ||
-      Math.round(Number(booking.total_online_paid) * 100) !== Math.round(input.amount * 100)
-    ) {
-      await client.query('ROLLBACK')
-      return false
-    }
-
-    const overlap = await client.query(
-      `SELECT other.id
-       FROM bookings AS other, bookings AS me
-       WHERE me.id = $1 AND other.id <> me.id AND other.status = 'CONFIRMED'
-         AND ${rowsOverlapSql('other', 'me', '$2')}
-       UNION ALL
-       ${blockedForBookingSelect('me')}
-       LIMIT 1`,
-      [booking.id, wholeResortAccommodationIds],
-    )
-    const dateUnavailable = Boolean(overlap.rowCount)
-    await client.query(
-      `INSERT INTO booking_payments (
-         id, booking_id, amount, method, reference, payer_account, source, status, verified_at
-       ) VALUES ($1, $2, $3, 'GCASH', $4, '', 'CUSTOMER', 'RECEIVED', clock_timestamp())`,
-      [randomUUID(), booking.id, input.amount, input.gatewayPaymentId],
-    )
-    await client.query(
-      `UPDATE bookings
-       SET paid_amount = base_deposit_amount,
-           payment_status = 'PARTIALLY_PAID',
-           status = $2,
-           gateway_payment_id = $3
-       WHERE id = $1`,
-      [booking.id, dateUnavailable ? 'DATE_UNAVAILABLE' : 'CONFIRMED', input.gatewayPaymentId],
-    )
-    // Priority #1: a paid GCash reservation takes the slot from any unpaid hold.
-    if (!dateUnavailable) await releaseOverlappingHolds(client, booking.id)
-    await client.query('COMMIT')
-    return dateUnavailable ? 'DATE_UNAVAILABLE' : true
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
-}
-
 export async function listCustomerBookings(userId: string) {
   await ensureUserSchema()
   const result = await getPool().query<BookingRecord>(
@@ -964,11 +856,16 @@ export async function reportBookingPayment(input: {
   proofStorageKey: string
   proofFileName: string
   paymentAmount: number
-}) {
+}): Promise<boolean | 'DUPLICATE_REFERENCE'> {
   await ensureUserSchema()
   const client = await getPool().connect()
   try {
     await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('booking_confirmation', 0))")
+    if (await gcashReferenceInUse(client, input.paymentReference)) {
+      await client.query('ROLLBACK')
+      return 'DUPLICATE_REFERENCE'
+    }
     const bookingResult = await client.query(
       `SELECT status, payment_status, deposit_required, estimated_total, paid_amount
        FROM bookings WHERE id = $1 AND user_id = $2 FOR UPDATE`,
@@ -1020,7 +917,7 @@ export async function reviewBookingPayment(input: {
   bookingId: string
   paymentId: string
   received: boolean
-}): Promise<false | 'DATE_UNAVAILABLE' | true> {
+}): Promise<false | 'DATE_UNAVAILABLE' | 'DUPLICATE_REFERENCE' | true> {
   await ensureUserSchema()
   const client = await getPool().connect()
   try {
@@ -1036,7 +933,7 @@ export async function reviewBookingPayment(input: {
     }
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended('booking_confirmation', 0))")
     const result = await client.query(
-      `SELECT p.amount, b.estimated_total, b.paid_amount, b.accommodation_id,
+      `SELECT p.amount, b.status, b.estimated_total, b.paid_amount, b.accommodation_id,
               b.check_in_date, b.check_out_date
        FROM booking_payments p
        JOIN bookings b ON b.id = p.booking_id
@@ -1057,6 +954,18 @@ export async function reviewBookingPayment(input: {
         await client.query('ROLLBACK')
         return false
       }
+      const duplicate = await client.query(
+        `SELECT 1 FROM booking_payments AS other, booking_payments AS me
+         WHERE me.id = $1 AND other.id <> me.id AND other.status = 'RECEIVED'
+           AND other.source = 'CUSTOMER' AND other.method <> 'CASH'
+           AND ${normalizedReference('other.reference')} = ${normalizedReference('me.reference')}
+         LIMIT 1`,
+        [input.paymentId],
+      )
+      if (duplicate.rowCount) {
+        await client.query('ROLLBACK')
+        return 'DUPLICATE_REFERENCE'
+      }
       const overlapResult = await client.query(
         `SELECT other.id
          FROM bookings AS other, bookings AS me
@@ -1067,7 +976,7 @@ export async function reviewBookingPayment(input: {
          LIMIT 1`,
         [input.bookingId, wholeResortAccommodationIds],
       )
-      const dateUnavailable = overlapResult.rowCount !== 0
+      const dateUnavailable = payment.status !== 'CONFIRMED' && overlapResult.rowCount !== 0
       await client.query(
         `UPDATE booking_payments
          SET status = 'RECEIVED', verified_at = clock_timestamp()
@@ -1168,7 +1077,7 @@ export async function recordCashPayment(input: {
        LIMIT 1`,
       [input.bookingId, wholeResortAccommodationIds],
     )
-    const dateUnavailable = overlapResult.rowCount !== 0
+    const dateUnavailable = booking.status !== 'CONFIRMED' && overlapResult.rowCount !== 0
     await client.query(
       `INSERT INTO booking_payments (
          id, booking_id, amount, method, source, status, verified_at
@@ -1200,19 +1109,19 @@ export async function recordCashPayment(input: {
 export async function updateBookingReview(input: {
   id: string
   status: BookingStatus
-}) {
+}): Promise<boolean | 'PAYMENT_WAITING'> {
   await ensureUserSchema()
-  const values: unknown[] = [input.id]
-  const updates: string[] = []
-  values.push(input.status)
-  updates.push(`status = $${values.length}`)
-  if (updates.length === 0) return false
-
   const result = await getPool().query(
-    `UPDATE bookings SET ${updates.join(', ')} WHERE id = $1 RETURNING id`,
-    values,
+    `UPDATE bookings SET status = $2
+     WHERE id = $1 AND NOT EXISTS (
+       SELECT 1 FROM booking_payments WHERE booking_id = $1 AND status = 'PENDING_REVIEW'
+     )
+     RETURNING id`,
+    [input.id, input.status],
   )
-  return result.rowCount === 1
+  if (result.rowCount === 1) return true
+  const exists = await getPool().query('SELECT 1 FROM bookings WHERE id = $1', [input.id])
+  return exists.rowCount ? 'PAYMENT_WAITING' : false
 }
 
 export async function createCustomer(input: {

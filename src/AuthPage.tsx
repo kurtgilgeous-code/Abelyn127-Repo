@@ -19,11 +19,8 @@ function AuthPage() {
 
   const destinationFor = (role: 'ADMIN' | 'CUSTOMER') => {
     const params = new URLSearchParams(window.location.search)
-    const reference = params.get('reference') ?? ''
     return role === 'ADMIN'
       ? '/admin/dashboard'
-      : params.get('next') === 'booking-success' && /^TRP-GCASH-\d{8}-\d{4}$/.test(reference)
-        ? `/booking/success?reference=${encodeURIComponent(reference)}`
         : params.get('next') === 'preview'
         ? '/#booking'
         : params.get('next') === 'my-bookings'
