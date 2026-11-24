@@ -1804,7 +1804,7 @@ html:root:not(#_):not(#_) .site-shell .booking-card .tour-option.is-checked :is(
     min-height: 44px;
   }
 
-  :root:not(#_):not(#_) :is(.footer-col a, a.footer-contact, a.find-us-line) {
+  :root:not(#_):not(#_) .footer-col a {
     display: inline-flex;
     align-items: center;
   }
