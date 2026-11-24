@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useState } from 'react'
-import { ArrowRight, Pause, Play } from 'lucide-react'
+import { Pause, Play } from 'lucide-react'
 import { type Accommodation, accommodations } from '../data/accommodations'
 import './HeroShowcase.css'
 
@@ -70,20 +70,13 @@ function PoolScene() {
   )
 }
 
-interface HeroShowcaseProps {
-  /** Pick this accommodation in the booking calculator and scroll to it. */
-  onSelectStay: (stayId: string) => void
-  /** Scroll to the booking calculator without changing the selection. */
-  onPlanVisit: () => void
-}
-
 /**
  * Hero slideshow: a new room every 4 seconds, crossfading with a slow zoom. It keeps
  * playing under the mouse; the dots jump to a slide (restarting the 4 s timer). It stops
  * while the tab is hidden, when the visitor presses pause, and for visitors who prefer
  * reduced motion (they can still use the dots).
  */
-export default function HeroShowcase({ onSelectStay, onPlanVisit }: HeroShowcaseProps) {
+export default function HeroShowcase() {
   const [index, setIndex] = useState(0)
   const [cycle, setCycle] = useState(0)
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -134,18 +127,9 @@ export default function HeroShowcase({ onSelectStay, onPlanVisit }: HeroShowcase
                 </div>
                 <div className="showcase-shade" />
 
-                {/* Just the place and one clear action. */}
-                <div className="showcase-info is-simple">
+                {/* Just the place's name. */}
+                <div className="showcase-info is-simple is-name-only">
                   <h3>{slideName(slide)}</h3>
-                  {slide.kind === 'room' ? (
-                    <button type="button" className="showcase-select" onClick={() => onSelectStay(slide.stay.id)}>
-                      Select space <ArrowRight size={14} aria-hidden="true" />
-                    </button>
-                  ) : (
-                    <button type="button" className="showcase-select" onClick={onPlanVisit}>
-                      Plan your visit <ArrowRight size={14} aria-hidden="true" />
-                    </button>
-                  )}
                 </div>
               </div>
             )

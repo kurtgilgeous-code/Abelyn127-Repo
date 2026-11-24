@@ -50,6 +50,7 @@ import ResortLogo from './components/ResortLogo'
 import CustomerSideNav from './components/CustomerSideNav'
 import ProceedBookingBar from './components/ProceedBookingBar'
 import BookingPolicyNote from './components/BookingPolicyNote'
+import StayCarousel from './components/StayCarousel'
 import GcashPaymentForm, { type GcashProof } from './components/GcashPaymentForm'
 import { sectionLandings, sideNavSections } from './components/sideNavSections'
 import AdminPage from './AdminPage'
@@ -78,6 +79,7 @@ import './theme/readable.css'
 import './theme/responsive.css'
 import './theme/button-pop.css'
 import './theme/mobile.css'
+import './theme/listing-cards.css'
 
 type GuestType = 'adults' | 'seniorsPwd' | 'children'
 type GuestCounts = Record<GuestType, number>
@@ -543,15 +545,6 @@ function CustomerPage() {
     ))
   }
 
-  // Hero slideshow "Select space": book just that accommodation, then glide to the calculator.
-  const selectStayFromHero = (stayId: string) => {
-    if (selectedIds.length !== 1 || selectedIds[0] !== stayId) {
-      resetAvailabilityCheck()
-      setSelectedIds([stayId])
-    }
-    scrollToSection('booking')
-  }
-
   const signInToBook = async () => {
     if (user) {
       if (paymentChoice === 'GCASH_DEPOSIT' || paymentChoice === 'GCASH_FULL') {
@@ -853,7 +846,7 @@ function CustomerPage() {
               <span><Check size={15} /> Easy rate preview</span>
             </div>
           </div>
-          <HeroShowcase onSelectStay={selectStayFromHero} onPlanVisit={() => scrollToSection('booking')} />
+          <HeroShowcase />
           <div className="hero-scroll"><span /> SCROLL TO EXPLORE</div>
         </section>
 
@@ -877,76 +870,50 @@ function CustomerPage() {
             {accommodations.map((stay, index) => {
               const isSelected = selectedIds.includes(stay.id)
               return (
-                <article className={`stay-card ${stay.exclusiveWholeResort ? 'is-exclusive' : 'is-shared'} ${isSelected ? 'is-selected' : ''}`} key={stay.id} data-aos="fade-up" data-aos-delay={(index % 3) * 100}>
-                  <div className={`stay-art stay-art-${index + 1} ${stay.photos.length ? 'has-photo' : ''}`}>
-                    {stay.photos[0] && <img className="stay-art-photo" src={stay.photos[0].src} alt="" loading="lazy" decoding="async" />}
+                <article className={`listing-card ${stay.exclusiveWholeResort ? 'is-exclusive' : 'is-shared'} ${isSelected ? 'is-selected' : ''}`} key={stay.id} data-aos="fade-up" data-aos-delay={(index % 3) * 100}>
+                  <div className={`listing-media listing-media-${(index % 4) + 1}`}>
+                    {stay.photos[0]
+                      ? <img src={stay.photos[0].src} alt="" loading="lazy" decoding="async" />
+                      : <span className="listing-media-icon" aria-hidden="true">{index === 3 || index === 7 ? <TentTree size={34} /> : index === 2 || index === 5 ? <Compass size={34} /> : <House size={34} />}</span>}
+                    <Tooltip label={stay.accessDescription}>
+                      <span className={`listing-badge ${stay.exclusiveWholeResort ? 'badge-exclusive' : 'badge-shared'}`} tabIndex={0}>
+                        {stay.exclusiveWholeResort ? 'Exclusive' : 'Shared Pool'}
+                      </span>
+                    </Tooltip>
                     <button
                       type="button"
-                      className="stay-photos-button"
+                      className="listing-photos"
                       aria-label={`View inside and outside photos of ${stay.name}`}
                       onClick={() => setGalleryStayId(stay.id)}
                     >
-                      <Images size={13} /> <span className="photos-label-full">View photos</span><span className="photos-label-short">Photos</span>{stay.photos.length > 0 && <span className="stay-photos-count">{stay.photos.length}</span>}
+                      <Images size={17} />
+                      {stay.photos.length > 0 && <span className="listing-photos-count">{stay.photos.length}</span>}
                     </button>
-                    <span className="stay-art-icon">
-                      {index === 3 || index === 7 ? <TentTree size={29} /> : index === 2 || index === 5 ? <Compass size={29} /> : <House size={29} />}
-                    </span>
-                    <Tooltip label={`Maximum ${stay.capacity} guests (pax) for ${stay.name}. Combine stays for bigger groups.`}>
-                      <span className="stay-capacity" tabIndex={0}><Users size={14} /> Up to {stay.capacity}{stay.overnightCapacity ? ` (${stay.overnightCapacity} overnight)` : ''}</span>
-                    </Tooltip>
-                    {stay.entranceFeeForAll && (
-                      <Tooltip label="Every guest pays the entrance fee here, not only those above capacity.">
-                        <span className="fee-pill" tabIndex={0}>Entrance fee applies</span>
-                      </Tooltip>
-                    )}
-                    {stay.exclusiveWholeResort ? (
-                      <span className="gold-glass-badge"><Sparkles size={12} /> <span className="badge-label-full">Exclusive Private Stay</span><span className="badge-label-short">Exclusive</span></span>
-                    ) : (
-                      <span className="shared-pool-badge"><Waves size={12} /> <span className="badge-label-full">Shared Pool Access</span><span className="badge-label-short">Shared Pool</span></span>
-                    )}
                   </div>
-                  <div className="stay-card-body">
-                    <div className="stay-title-row">
-                      <div>
-                        <h3>{stay.name}</h3>
-                        <span className="stay-subtitle">{stay.category}</span>
-                      </div>
-                      <div className="stay-price">
-                        <strong>{formatPeso(stay.overnightRate)}</strong><small>overnight · 22 hrs</small>
-                        <span className="stay-price-tour"><Sun size={11} aria-hidden="true" /> Day tour <b>{formatPeso(stay.baseRate)}</b></span>
-                        <span className="stay-price-tour"><Moon size={11} aria-hidden="true" /> Night tour <b>{formatPeso(stay.baseRate)}</b></span>
-                      </div>
-                    </div>
-                    <ul className="feature-list">
-                      {stay.features.slice(0, 3).map((feature) => <li key={feature}><Check size={13} /> {feature}</li>)}
+                  <div className="listing-body">
+                    <h3>{stay.name}</h3>
+                    <p className="listing-meta">
+                      {stay.exclusiveWholeResort ? <Sparkles size={14} aria-hidden="true" /> : <Waves size={14} aria-hidden="true" />}
+                      {stay.category}
+                    </p>
+                    <ul className="listing-stats">
+                      <li>Up to {stay.capacity} guests{stay.overnightCapacity ? ` (${stay.overnightCapacity} overnight)` : ''}</li>
+                      <li>Day / Night tour {formatPeso(stay.baseRate)}</li>
+                      {stay.features.filter((feature) => !/guests|entrance fee/i.test(feature)).slice(0, 3).map((feature) => <li key={feature}>{feature}</li>)}
+                      {stay.entranceFeeForAll && <li className="listing-stat-note">Entrance fee for every guest</li>}
                     </ul>
-                    {stay.exclusiveWholeResort ? (
-                      <div className="exclusive-resort-note gold-glass-callout">
-                        <ShieldCheck size={16} />
-                        <span>
-                          <b>Exclusive Private Stay</b>
-                          <small>The resort and pool are private for your group during your dates. Only the room you booked is included; other rooms are not. No other guests can book or check in once confirmed.</small>
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="shared-pool-note shared-pool-callout">
-                        <Waves size={15} />
-                        <span>
-                          <b>Standard Shared-Pool Access</b>
-                          <small>{stay.accessDescription}</small>
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      className={`select-stay ${isSelected ? 'selected' : ''}`}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => { toggleStay(stay.id); setProceedBarArmed(true) }}
-                    >
-                      {isSelected
-                        ? <><Check size={15} /> Added · Remove</>
-                        : <>Add to booking <Plus size={15} /></>}
-                    </button>
+                    <div className="listing-foot">
+                      <p className="listing-price"><strong>{formatPeso(stay.overnightRate)}</strong><small>/ overnight</small></p>
+                      <button
+                        className={`listing-cta ${isSelected ? 'selected' : ''}`}
+                        type="button"
+                        aria-pressed={isSelected}
+                        aria-label={isSelected ? `Remove ${stay.name} from booking` : `Add ${stay.name} to booking`}
+                        onClick={() => { toggleStay(stay.id); setProceedBarArmed(true) }}
+                      >
+                        {isSelected ? <><Check size={14} /> Added</> : <><Plus size={14} /> Add</>}
+                      </button>
+                    </div>
                   </div>
                 </article>
               )
@@ -976,34 +943,19 @@ function CustomerPage() {
                       <input type="radio" name="tour-type" value={type} checked={tourType === type} onChange={() => setTourType(type)} />
                       {type === 'DAY_TOUR' ? <Sun size={16} /> : type === 'NIGHT_TOUR' ? <Moon size={16} /> : <Clock3 size={16} />}
                       <b>{tourDetails[type].label}</b>
-                      <small>{tourDetails[type].checkIn}–{tourDetails[type].checkOut}</small>
-                      <small className="tour-option-fee">Entrance {formatPeso(entranceRates[type].adults)} adult · {formatPeso(entranceRates[type].children)} senior/child</small>
+                      <small>{type === 'DAY_TOUR' ? '7 AM – 5 PM' : type === 'NIGHT_TOUR' ? '7 PM – 6 AM' : '2 PM – 12 NN'}</small>
                     </label>
                   ))}
                 </div>
               </fieldset>
               <fieldset className="form-field stay-picker">
                 <legend>Accommodations <span>Select one or more</span></legend>
-                <div className="stay-options">
-                  {pricedStays.map((stay) => {
-                    const checked = selectedIds.includes(stay.id)
-                    return (
-                      <label className={`stay-option ${checked ? 'is-checked' : ''}`} key={stay.id}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleStay(stay.id)}
-                        />
-                        <span className="stay-option-box" aria-hidden="true">{checked && <Check size={11} strokeWidth={3} />}</span>
-                        <span className="stay-option-name">
-                          {stay.name}
-                          <small className="stay-option-pax"><Users size={10} aria-hidden="true" /> Up to {stay.capacity} pax{stay.exclusiveWholeResort && <em> · Exclusive</em>}</small>
-                        </span>
-                        <span className="stay-option-price">{formatPeso(stay.baseRate)}<small>{overnightPricing ? '/22 hrs' : tourType === 'NIGHT_TOUR' ? '/night tour' : '/day tour'}</small></span>
-                      </label>
-                    )
-                  })}
-                </div>
+                <StayCarousel
+                  stays={pricedStays}
+                  selectedIds={selectedIds}
+                  onToggle={toggleStay}
+                  priceSuffix={overnightPricing ? '/22 hrs' : tourType === 'NIGHT_TOUR' ? '/night tour' : '/day tour'}
+                />
                 <small className="field-hint">
                   {selectedStays.length === 0
                     ? <b>Select at least one accommodation to continue.</b>
@@ -1012,8 +964,8 @@ function CustomerPage() {
                 </small>
                 <small className="field-hint tour-rate-hint">
                   {overnightPricing
-                    ? <>Overnight rate{tourType === 'OVERNIGHT' ? ' (22 hours)' : ` for each of the ${stayDays} days`}: entrance is included for up to the room&apos;s pax; each extra guest pays {formatPeso(entranceRates.OVERNIGHT.adults)} per adult and {formatPeso(entranceRates.OVERNIGHT.children)} per senior/PWD/child (Gazebo, Calesa Tables, and Kubo ni Gerrant: every guest).</>
-                    : <>{tourDetails[tourType].label} ({tourDetails[tourType].checkIn}–{tourDetails[tourType].checkOut}): the room rate includes entrance for up to the room&apos;s pax; each extra guest pays {formatPeso(entranceRates[tourType].adults)} per adult and {formatPeso(entranceRates[tourType].children)} per senior/PWD/child (Gazebo, Calesa Tables, and Kubo ni Gerrant: every guest). 2 or more days uses the overnight rate.</>}
+                    ? <>Overnight rate{tourType === 'OVERNIGHT' ? ' (22 hours)' : `, charged for each of the ${stayDays} days`}. Entrance is included up to the room&apos;s pax.</>
+                    : <>{tourDetails[tourType].label} rate. Entrance is included up to the room&apos;s pax.</>}
                 </small>
                 {selectedStays.length === 0 ? null : combinedStay.exclusiveWholeResort ? (
                   <div className="exclusive-resort-note booking-exclusive-note gold-glass-callout">
@@ -1064,7 +1016,7 @@ function CustomerPage() {
                   <small className="field-hint">{tourDetails[tourType].checkOut} · {stayDays} {stayDays === 1 ? 'day' : 'days'}</small>
                 </div>
               </div>
-              <p className={`availability-status availability-${availabilityStatus}`} role="status" aria-live="polite">
+              <p className={`availability-status availability-${availabilityStatus}`} role="status" aria-live="polite" hidden={selectedStays.length === 0 && availabilityStatus === 'idle'}>
                 {availabilityStatus === 'checking'
                   ? 'Checking these dates…'
                   : availabilityStatus === 'available'
@@ -1085,13 +1037,10 @@ function CustomerPage() {
                           ? 'Select an accommodation to check these dates.'
                           : 'Choose a valid date range to check availability.'}
               </p>
-              <p className="fcfs-note">
-                <Info size={14} aria-hidden="true" />
-                <span>
-                  <b>First come, first served.</b> Dates stay open to everyone until the resort verifies a GCash payment or receives cash. The first verified payment gets the date. Unverified payments and walk-in vouchers don&apos;t reserve a date.
-                </span>
-              </p>
-              <BookingPolicyNote />
+              <ul className="booking-rules">
+                <li><b>First come, first served.</b> The first verified payment gets the date.</li>
+                <li><b>No refunds.</b> You can ask to change your date, subject to approval.</li>
+              </ul>
               <div className="form-field guest-field">
                 <div className="guest-heading"><label>Guests</label><span>{guestCount} {guestCount === 1 ? 'guest' : 'guests'}{roomPax !== null && extraCount > 0 ? ` · ${mainCount} in the room + ${extraCount} extra` : ''}</span></div>
                 {roomPax !== null && (
@@ -1374,7 +1323,13 @@ function CustomerPage() {
             <span className="eyebrow eyebrow-dark"><span className="eyebrow-dot" /> GOOD TO KNOW</span>
             <div className="rates-heading" data-aos="fade-up">
               <h2>Simple rates.<br /><em>More good times.</em></h2>
-              <p>Choose a Day Tour (7:00 AM–5:00 PM), Night Tour (7:00 PM–6:00 AM), or Overnight stay (22 hours, 2:00 PM–12:00 NN). Day and Night Tours share one room rate, and Overnight has its own. Every rate includes entrance for up to the room&apos;s pax; extra guests pay that tour&apos;s entrance fee. Each stay card shows both rates.</p>
+              <ul className="rates-summary">
+                <li><Sun size={16} aria-hidden="true" /><span><b>Day Tour</b> 7:00 AM – 5:00 PM</span></li>
+                <li><Moon size={16} aria-hidden="true" /><span><b>Night Tour</b> 7:00 PM – 6:00 AM</span></li>
+                <li><Clock3 size={16} aria-hidden="true" /><span><b>Overnight</b> 22 hours, 2:00 PM – 12:00 NN</span></li>
+                <li><Check size={16} aria-hidden="true" /><span>Day and Night Tours cost the same. Overnight has its own rate.</span></li>
+                <li><Users size={16} aria-hidden="true" /><span>Entrance is free up to the room&apos;s pax. Extra guests pay the entrance fee.</span></li>
+              </ul>
             </div>
             <div className="rate-details">
               <div className="rate-detail-card rate-day" data-aos="fade-up" data-aos-delay="0">
@@ -1414,7 +1369,26 @@ function CustomerPage() {
                 </div>
               </div>
             </div>
-            <p className="rates-caveat" data-aos="fade-up">Day and Night Tours (one day) use the same room rate. Overnight stays (22 hours) and every booking of 2 or more days use the overnight rate for each day; for example, Abelyn's Cabin Glass for 3 days is 3 × ₱7,500 = ₱22,500. Every rate includes entrance for up to the room's pax: guests fill the room first, and each extra guest pays that tour's entrance fee (Day Tour ₱150 adult, ₱120 senior/child; Night Tour and Overnight ₱250 adult, ₱150 senior/child); Gazebo, Calesa Tables, and Kubo ni Gerrant charge entrance for every guest. Groups bigger than the room's pax are welcome, up to 100 guests per booking. Please confirm availability and final charges with Tampisawan before payment. Payments are non-refundable; reasonable booking adjustments, such as a change of date, may be requested subject to availability and the resort's approval.</p>
+            <div className="rates-notes" data-aos="fade-up">
+              <div className="rates-notes-group">
+                <h3><CircleDollarSign size={18} aria-hidden="true" /> How your total is worked out</h3>
+                <ul>
+                  <li><b>One-day Day or Night Tour:</b> the tour rate.</li>
+                  <li><b>Overnight, or 2 or more days:</b> the overnight rate for each day. Example: Abelyn&apos;s Cabin Glass for 3 days is 3 × ₱7,500 = ₱22,500.</li>
+                  <li><b>Entrance:</b> included up to the room&apos;s pax. Each extra guest pays the entrance fee shown above.</li>
+                  <li><b>Gazebo, Calesa Tables, and Kubo ni Gerrant:</b> every guest pays entrance.</li>
+                  <li><b>Big groups:</b> welcome, up to 100 guests per booking.</li>
+                </ul>
+              </div>
+              <div className="rates-notes-group">
+                <h3><Wallet size={18} aria-hidden="true" /> Before you pay</h3>
+                <ul>
+                  <li>Confirm availability and the final charges with Tampisawan.</li>
+                  <li>Payments are <b>non-refundable</b>.</li>
+                  <li>You can ask to change your date. Changes depend on availability and the resort&apos;s approval.</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </section>
       </main>
