@@ -243,7 +243,7 @@
 .rates-heading h2,
 .review-modal h2 {
   margin: 22px 0 0;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Cormorant Garamond', Georgia, serif;
   font-size: clamp(43px, 5vw, 67px);
   font-weight: 500;
   letter-spacing: -.7px;
@@ -1474,7 +1474,7 @@
 
 .footer-note {
   color: #79869b;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Cormorant Garamond', Georgia, serif;
   font-size: 13px;
   font-style: italic;
 }
@@ -2099,7 +2099,7 @@
 .customer-followup-copy h2 {
   margin: 15px 0 0;
   color: var(--ink);
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Cormorant Garamond', Georgia, serif;
   font-size: 41px;
   font-weight: 500;
   line-height: 1.15;

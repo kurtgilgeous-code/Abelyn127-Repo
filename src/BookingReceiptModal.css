@@ -70,7 +70,7 @@
 .receipt-heading h1 {
   margin: 9px 0 5px;
   color: #1b2536;
-  font-family: "Playfair Display", serif;
+  font-family: "Cormorant Garamond", serif;
   font-size: clamp(24px, 4vw, 32px);
 }
 
@@ -219,7 +219,7 @@
 .booking-success-state h1 {
   margin: 0;
   color: #1b2536;
-  font-family: "Playfair Display", serif;
+  font-family: "Cormorant Garamond", serif;
   font-size: clamp(26px, 5vw, 38px);
 }
 
@@ -298,7 +298,7 @@
 .booking-cancelled-card h1 {
   margin: 0;
   color: var(--ink, #1b2536);
-  font-family: "Playfair Display", serif;
+  font-family: "Cormorant Garamond", serif;
   font-size: clamp(24px, 4.5vw, 34px);
 }
 

@@ -1,6 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDown,
   ArrowRight,
   ArrowUpRight,
   AlertTriangle,
@@ -28,6 +27,7 @@ import {
   X,
 } from 'lucide-react'
 import { accommodations } from './data/accommodations'
+import { RESORT_PHOTO } from './data/resortInfo'
 import {
   type Booking,
   type TourType,
@@ -62,7 +62,10 @@ import ProtectedRoute from './ProtectedRoute'
 import BookingReceiptModal from './BookingReceiptModal'
 import GeraintChatbot from './components/GeraintChatbot'
 import StayGallery from './components/StayGallery'
+import FindUs from './components/FindUs'
 import HeroShowcase from './components/HeroShowcase'
+import SiteFooter from './components/SiteFooter'
+import RetreatBackdrop from './components/RetreatBackdrop'
 import FallingLeaves from './components/FallingLeaves'
 import AmbientAtmosphere from './components/AmbientAtmosphere'
 import { useScrollSpy } from './hooks/useScrollSpy'
@@ -80,6 +83,7 @@ import './theme/responsive.css'
 import './theme/button-pop.css'
 import './theme/mobile.css'
 import './theme/listing-cards.css'
+import './theme/retreat.css'
 
 type GuestType = 'adults' | 'seniorsPwd' | 'children'
 type GuestCounts = Record<GuestType, number>
@@ -752,6 +756,8 @@ function CustomerPage() {
         scrollToSection(id)
       }}
     >
+      {/* The resort garden, softly behind the whole page */}
+      <div className="page-photo" aria-hidden="true" />
       <AmbientAtmosphere />
       <FallingLeaves />
       <CustomerSideNav
@@ -825,29 +831,49 @@ function CustomerPage() {
       </header>
 
       <main>
-        <section className="hero" id="home">
-          <div className="hero-copy" data-aos="fade-up">
-            <span className="eyebrow"><Sparkles size={14} /> {user ? 'YOUR PRIVATE POOL ESCAPE' : 'GUEST PREVIEW MODE'}</span>
-            <ResortLogo className="resort-logo-hero" />
-            <h1>Slow down.<br />Stay a little <em>longer.</em></h1>
-            <p>
-              Make room for day tours, night swims, and overnight stays at
-              Tampisawan.
-            </p>
-            <div className="hero-actions">
-              <a className="button button-light" href="#stays">
-                Preview Resort &amp; Rates <ArrowDown size={16} />
-              </a>
-              <span className="hero-hours"><Clock3 size={16} /> Day tours, night tours, and overnight stays</span>
-            </div>
-            <div className="hero-trust">
-              <span><Check size={15} /> Private pool</span>
-              <span><Check size={15} /> Spaces for every group</span>
-              <span><Check size={15} /> Easy rate preview</span>
-            </div>
+        <section className="bento-hero" id="home" aria-label="Welcome to Tampisawan">
+          {/* Big picture card: a slow slideshow of every space, name only */}
+          <div className="bento-card bento-scene">
+            <HeroShowcase />
           </div>
-          <HeroShowcase />
-          <div className="hero-scroll"><span /> SCROLL TO EXPLORE</div>
+
+          {/* Headline card */}
+          <div className="bento-card bento-intro">
+            <span className="retreat-kicker">{user ? 'your hidden escape' : 'a hidden gem in nature'}</span>
+            <h1>Take a <em>dip.</em><br />Stay a while.</h1>
+            <p>A quiet private pool tucked away in the trees. Day tours, night swims, and overnight stays.</p>
+            <a className="bento-outline" href="#stays" onClick={(event) => { event.preventDefault(); scrollToSection('stays') }}>
+              Explore the spaces <ArrowRight size={16} aria-hidden="true" />
+            </a>
+            <span className="bento-blob" aria-hidden="true" />
+          </div>
+
+          {/* Search card */}
+          <form
+            className="bento-card bento-search"
+            aria-label="Plan your visit"
+            onSubmit={(event) => { event.preventDefault(); scrollToSection('booking') }}
+          >
+            <label className="bento-field">
+              <span>Tour type</span>
+              <select value={tourType} onChange={(event) => setTourType(event.target.value as TourType)}>
+                {(['DAY_TOUR', 'NIGHT_TOUR', 'OVERNIGHT'] as TourType[]).map((type) => (
+                  <option key={type} value={type}>{tourDetails[type].label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="bento-field">
+              <span>Check-in</span>
+              <input type="date" min={tomorrow()} value={checkInDate} onChange={(event) => {
+                const nextCheckIn = event.target.value
+                if (!nextCheckIn) return
+                resetAvailabilityCheck()
+                setCheckInDate(nextCheckIn)
+                if (checkOutDate <= nextCheckIn) setCheckOutDate(addDays(nextCheckIn, 1))
+              }} />
+            </label>
+            <button type="submit" className="bento-submit">Check dates <ArrowRight size={16} aria-hidden="true" /></button>
+          </form>
         </section>
 
         <section className="intro-strip" aria-label="Stay details">
@@ -1391,15 +1417,22 @@ function CustomerPage() {
             </div>
           </div>
         </section>
+
+        <FindUs />
+
+        <section className="retreat-closing" aria-labelledby="closing-title">
+          <RetreatBackdrop photo={RESORT_PHOTO} />
+          <div className="retreat-copy">
+            <span className="retreat-kicker">see you by the water</span>
+            <h2 id="closing-title">Slow down <em>&amp;</em> stay longer</h2>
+            <a className="retreat-closing-cta" href="#booking" onClick={(event) => { event.preventDefault(); scrollToSection('booking') }}>
+              Plan your visit <ArrowRight size={16} aria-hidden="true" />
+            </a>
+          </div>
+        </section>
       </main>
 
-      <footer className="site-footer">
-        <a className="brand footer-brand" href="#home" aria-label="Tampisawan home">
-          <ResortLogo className="resort-logo-footer" />
-        </a>
-        <span className="footer-note">Make space for a little getaway.</span>
-        <a className="footer-top" href="#home">Back to top <ArrowUpRight size={15} /></a>
-      </footer>
+      <SiteFooter />
 
       {showReview && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeReview() }}>
