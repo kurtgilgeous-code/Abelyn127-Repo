@@ -408,7 +408,7 @@
 .earnings-table td { color: var(--earn-ink-2); }
 .earnings-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .earnings-table .strong { color: var(--earn-ink); font-weight: 700; }
-.earnings-table .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 9.5px; }
+.earnings-table .mono { font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .02em; font-size: 9.5px; }
 .earnings-table tr.is-selected { background: var(--earn-selected); }
 .earnings-table tr.is-refund-review td { color: var(--earn-muted); }
 

@@ -77,6 +77,7 @@ import './theme/buttons.css'
 import './theme/readable.css'
 import './theme/responsive.css'
 import './theme/button-pop.css'
+import './theme/mobile.css'
 
 type GuestType = 'adults' | 'seniorsPwd' | 'children'
 type GuestCounts = Record<GuestType, number>

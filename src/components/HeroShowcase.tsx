@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useState } from 'react'
-import { ArrowRight, Clock3, MapPin, Moon, Pause, Play, ShieldCheck, Sparkles, Users, Waves } from 'lucide-react'
+import { ArrowRight, Pause, Play } from 'lucide-react'
 import { type Accommodation, accommodations } from '../data/accommodations'
 import './HeroShowcase.css'
 
@@ -28,17 +28,6 @@ const slides: Slide[] = [
     .map((stay) => ({ kind: 'room' as const, key: stay.id, stay })),
   { kind: 'pool', key: 'private-pool' },
 ]
-
-const isOpenAir = (stay: Accommodation) => /open-air|outdoor|event/i.test(stay.category)
-
-function durationLabel(stay: Accommodation) {
-  return isOpenAir(stay) ? 'Day & Night Tours' : '22 Hours Overnight'
-}
-
-function highlight(stay: Accommodation) {
-  const extras = stay.features.filter((feature) => !/entrance fee/i.test(feature)).slice(0, 2)
-  return [stay.category, ...extras].join(' · ')
-}
 
 function slideName(slide: Slide) {
   return slide.kind === 'room' ? slide.stay.name : 'The Private Pool'
@@ -145,44 +134,19 @@ export default function HeroShowcase({ onSelectStay, onPlanVisit }: HeroShowcase
                 </div>
                 <div className="showcase-shade" />
 
-                {slide.kind === 'room' ? (
-                  <>
-                    <span className="showcase-pill showcase-pill-duration">
-                      {isOpenAir(slide.stay) ? <Clock3 size={13} aria-hidden="true" /> : <Moon size={13} aria-hidden="true" />}
-                      {durationLabel(slide.stay)}
-                    </span>
-                    {slide.stay.exclusiveWholeResort ? (
-                      <span className="showcase-pill showcase-pill-tier is-gold"><Sparkles size={12} aria-hidden="true" /> Exclusive Private Stay</span>
-                    ) : (
-                      <span className="showcase-pill showcase-pill-tier is-cobalt"><Waves size={12} aria-hidden="true" /> Shared Pool Access</span>
-                    )}
-                    <div className="showcase-info">
-                      <h3>{slide.stay.name}</h3>
-                      <p>{highlight(slide.stay)}</p>
-                      <div className="showcase-info-row">
-                        <span className="showcase-capacity"><Users size={13} aria-hidden="true" /> Up to {slide.stay.capacity} Pax</span>
-                        <button type="button" className="showcase-select" onClick={() => onSelectStay(slide.stay.id)}>
-                          Select space <ArrowRight size={14} aria-hidden="true" />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span className="showcase-pill showcase-pill-duration"><Clock3 size={13} aria-hidden="true" /> Day, Night &amp; Overnight</span>
-                    <span className="showcase-pill showcase-pill-tier is-gold"><ShieldCheck size={12} aria-hidden="true" /> Private Pool</span>
-                    <div className="showcase-info">
-                      <h3>The Private Pool</h3>
-                      <p><MapPin size={12} aria-hidden="true" /> A little place to feel away · day swims to night swims</p>
-                      <div className="showcase-info-row">
-                        <span className="showcase-capacity"><Waves size={13} aria-hidden="true" /> Included with every stay</span>
-                        <button type="button" className="showcase-select" onClick={onPlanVisit}>
-                          Plan your visit <ArrowRight size={14} aria-hidden="true" />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
+                {/* Just the place and one clear action. */}
+                <div className="showcase-info is-simple">
+                  <h3>{slideName(slide)}</h3>
+                  {slide.kind === 'room' ? (
+                    <button type="button" className="showcase-select" onClick={() => onSelectStay(slide.stay.id)}>
+                      Select space <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <button type="button" className="showcase-select" onClick={onPlanVisit}>
+                      Plan your visit <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}

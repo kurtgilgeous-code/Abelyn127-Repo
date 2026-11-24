@@ -1,0 +1,106 @@
+/* =========================================================================
+   Phones and tablets: every control is at least 44 × 44 px, the size a fingertip
+   needs, and nothing floats over the booking form. Loaded last.
+   ========================================================================= */
+@media (max-width: 720px), (max-width: 1024px) and (pointer: coarse) {
+  /* ---- Buttons, fields, and menus: at least a fingertip tall ---- */
+  :root:not(#_) :is(.site-shell, .admin-shell, .login-page, .auth-page, .customer-side, .geraint, .receipt-overlay, .modal-backdrop) :is(
+    button, select, input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']), [role='button']
+  ):not(.showcase-dot, .showcase-toggle, .stay-option-box) {
+    min-height: 44px;
+  }
+
+  /* Links that act as buttons */
+  :root:not(#_) :is(
+    .text-link, .footer-top, .customer-link, .login-help, .admin-footer a, .header-cta, .showcase-select,
+    .stay-photos-button, .main-nav a, .customer-side-row, .customer-side-cta, .gcash-pay-qr a, .payment-proof-link,
+    a.review-button
+  ) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  :root:not(#_) :is(.brand, .admin-brand) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* Round icon buttons grow evenly so they stay round. */
+  :root:not(#_) :is(
+    .modal-close, .gallery-close, .gallery-arrow, .geraint-close, .geraint-send, .receipt-close, .proceed-bar-close,
+    .customer-side-close, .admin-side-close, .admin-modal-close, .header-signout, .customer-menu-button,
+    .admin-menu-button, .earnings-icon-button, .payment-notification button, .guest-stepper button
+  ) {
+    flex: none;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  /* ---- Slideshow dots and pause: same look, bigger invisible touch area ---- */
+  :root:not(#_) .showcase-dot::after,
+  :root:not(#_) .showcase-toggle::after {
+    content: '';
+    position: absolute;
+    inset: -18px -5px;
+  }
+
+  :root:not(#_) .showcase-toggle {
+    position: relative;
+  }
+
+  :root:not(#_) .showcase-toggle::after {
+    inset: -9px;
+  }
+
+  /* ---- Ask Geraint: a small round button that steps aside while you scroll ---- */
+  :root:not(#_) .geraint-launcher {
+    gap: 0;
+    padding: 4px;
+    transition: transform .25s ease, opacity .25s ease, box-shadow .2s ease;
+  }
+
+  :root:not(#_) .geraint-launcher-label {
+    display: none;
+  }
+
+  /* The chat's frame never blocks taps; only the button itself is tappable. */
+  :root:not(#_) .geraint:not(.is-open) {
+    pointer-events: none;
+  }
+
+  :root:not(#_) .geraint:not(.is-open):not(.is-tucked) .geraint-launcher {
+    pointer-events: auto;
+  }
+
+  :root:not(#_) .geraint.is-tucked .geraint-launcher {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(100% + 28px));
+  }
+
+  /* The phone header keeps just the logo and the main button. Your account and
+     Sign out are one tap away in the side menu. */
+  :root:not(#_) .site-header :is(.header-account, .header-signout) {
+    display: none;
+  }
+
+  :root:not(#_) .site-header .tooltip-wrap:has(> .header-signout),
+  :root:not(#_) .site-header [class*='tooltip']:has(> .header-signout) {
+    display: none;
+  }
+
+  /* Room under the last section so the chat button never hides the footer. */
+  :root:not(#_) .site-footer {
+    padding-bottom: 84px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not(#_) .geraint-launcher {
+    transition: none;
+  }
+}

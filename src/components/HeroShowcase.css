@@ -170,6 +170,24 @@
 
 :root[data-theme='dark'] .showcase-info p { color: #94a3b8; }
 
+/* Name on the left, one button on the right; stacks on very narrow cards. */
+.showcase-info.is-simple {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.showcase-info.is-simple h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.showcase-info.is-simple .showcase-select {
+  flex: none;
+}
+
 .showcase-info-row {
   display: flex;
   align-items: center;

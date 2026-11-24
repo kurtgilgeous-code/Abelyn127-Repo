@@ -39,11 +39,37 @@ const readableFonts = {
   },
 }
 
+/** Largest corner rounding on boxes, buttons, and inputs. Set to 0 for fully square corners. */
+const MAX_CORNER_PX = 3
+
+/** Pills and dots that stay round because they are indicators, not boxes. */
+const keepsRoundShape = /dot|indicator/
+
+/**
+ * Squares the corners of every box for a sharper, more professional look. Circles (50%) and
+ * illustration shapes (other % values) keep their curves, so icons, avatars, and the hero art
+ * stay round.
+ */
+const squareCorners = {
+  postcssPlugin: 'square-corners',
+  Declaration(declaration: CssNode & { prop: string, value: string, parent?: CssNode & { selector?: string } }) {
+    if (!/^border(-[a-z]+)*-radius$/.test(declaration.prop)) return
+    const value = declaration.value
+    if (/%|var\(|inherit|initial|unset/.test(value)) return
+    if (/\b9{3,}px/.test(value) && keepsRoundShape.test(declaration.parent?.selector ?? '')) return
+    const squared = value.replace(/(?<![\w.-])(\d*\.?\d+)(px|rem|em)\b/g, (match, size: string, unit: string) => {
+      const px = unit === 'px' ? Number(size) : Number(size) * 16
+      return px > MAX_CORNER_PX ? `${MAX_CORNER_PX}px` : match
+    })
+    if (squared !== value) declaration.value = squared
+  },
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   css: {
-    postcss: { plugins: [readableFonts] },
+    postcss: { plugins: [readableFonts, squareCorners] },
   },
   server: {
     proxy: {

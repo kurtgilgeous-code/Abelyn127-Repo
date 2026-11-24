@@ -87,6 +87,22 @@ export default function GeraintChatbot() {
   const launcherRef = useRef<HTMLButtonElement>(null)
   const requestRef = useRef<AbortController | null>(null)
   const hasGuestMessage = messages.some((message) => message.role === 'user')
+  // On phones the button steps aside while the guest scrolls down, so it never covers the form.
+  const [tucked, setTucked] = useState(false)
+
+  useEffect(() => {
+    const phone = window.matchMedia('(max-width: 720px), (max-width: 1024px) and (pointer: coarse)')
+    let last = window.scrollY
+    const onScroll = () => {
+      const y = window.scrollY
+      if (!phone.matches || y < 160) setTucked(false)
+      else if (y > last + 6) setTucked(true)
+      else if (y < last - 6) setTucked(false)
+      last = y
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const close = useCallback(() => {
     setOpen(false)
@@ -142,7 +158,7 @@ export default function GeraintChatbot() {
   }
 
   return (
-    <div className={`geraint ${open ? 'is-open' : ''}`}>
+    <div className={`geraint ${open ? 'is-open' : ''}${tucked && !open ? ' is-tucked' : ''}`}>
       {open && (
         <section
           id={panelId}
@@ -230,6 +246,8 @@ export default function GeraintChatbot() {
           onClick={() => setOpen(true)}
           aria-expanded={open}
           aria-controls={panelId}
+          aria-label="Ask Geraint, the resort concierge"
+          onFocus={() => setTucked(false)}
         >
           <span className="geraint-launcher-avatar">
             <GeraintAvatar size={38} />

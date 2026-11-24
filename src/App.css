@@ -3755,7 +3755,7 @@
 
 .hold-reference b {
   color: #78350f;
-  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .02em;
   font-size: 12px;
   letter-spacing: .4px;
 }
