@@ -30,7 +30,7 @@ export const RESORT_INFO: {
   },
   // As written on the resort's Google Maps listing.
   address: ['Sitio Madrecacawan, San Juan', '4226 Batangas'],
-  phones: ['+63 977 851 0927', '+63 917 568 7772'],
+  phones: ['+63 977 851 0927', '+63 917 568 7772', '043 783 9882 (landline)'],
   hours: 'Open 24/7',
   directions: [],
 }
